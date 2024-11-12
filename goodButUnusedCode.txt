@@ -1,0 +1,20 @@
+//calculates own points
+// std::vector<CanvasPoint> interpolateUniquePoints(const CanvasPoint from, const CanvasPoint to) {
+//     std::vector<CanvasPoint> result;
+// 	int yRange = abs(to.y-from.y);
+
+//     CanvasPoint lower = (from.y < to.y) ? from : to;
+//     CanvasPoint upper = (from.y < to.y) ? to : from;
+// 	//each item in the out has a y value ranging from 0 to y range
+
+// 	std::vector<float> xs = interpolateSingleFloats(from.x, to.x, yRange);
+
+// 	for (int y=lower.y; y<upper.y; y++){
+// 		CanvasPoint point;
+// 		point.y=y;
+// 		point.x=xs[y-lower.y];
+
+// 		result.push_back(point);
+// 	}
+// 	return result;
+// }
