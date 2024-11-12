@@ -87,6 +87,7 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
     std::vector<glm::vec3> vertices;
     std::vector<ModelTriangle> triangles;
     std::unordered_map<int, glm::vec3> vertexNormals; //stores accumulated normals for each vertex index
+	std::vector<TexturePoint> texturePoints;
     Colour colour;
 
     for (std::string l : lines) {
@@ -117,9 +118,20 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 			vertex[2] = vertex[2] + offset.z;
 
             vertices.push_back(vertex);
-        } else if (l.substr(0, 2) == "f ") {
+        } else if (l.substr(0,2) == "vt"){ 
+            std::vector<std::string> texturePointsRaw = split(l.substr(2), ' ');
+			TexturePoint tp(std::stof(texturePointsRaw[1]),std::stof(texturePointsRaw[2]));
+			texturePoints.push_back(tp);
+		} else if (l.substr(0, 2) == "f ") {
 			//splits line into the three triangle indexes
             std::vector<std::string> triangleVerticesIndex = split(l.substr(2), ' ');
+			if (!split(triangleVerticesIndex[0],'/')[1].empty()){
+				std::cout<<"need to deal with texture point"<<std::endl;
+				//good start here, just need to add them as texture points
+				//set it up so the rest of the code will work without an else statement :)
+
+
+			}
             std::vector<size_t> triangleVerticesIntIndex;
             for (const std::string& item : triangleVerticesIndex) {
                 int itemInt = std::stoi(item) - 1;
@@ -165,6 +177,10 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
             triangles[j].normals[i] = glm::normalize(vertexNormals[vertexIndex]);
         }
     }
+
+	for (TexturePoint tp: texturePoints){
+		std::cout<<tp<<std::endl;
+	}
 
 	std::cout<<"obj parser done"<<std::endl;
 
@@ -682,7 +698,7 @@ int main(int argc, char *argv[]) {
 
 	std::tuple<std::vector<Colour>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
 
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
