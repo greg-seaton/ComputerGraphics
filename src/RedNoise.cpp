@@ -163,9 +163,6 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
         for (int i = 0; i < 3; ++i) {
             int vertexIndex = triangles[j].vertexIndex[i];
             triangles[j].normals[i] = glm::normalize(vertexNormals[vertexIndex]);
-			if (j==10){
-				std::cout<<triangles[j].normals[i][0]<<","<<triangles[j].normals[i][1]<<","<<triangles[j].normals[i][2]<<","<<std::endl;
-			}
         }
     }
 
@@ -175,18 +172,21 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 }
 
 //this is intended to work from the camera
-RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vector<ModelTriangle> triangles){
-	glm::vec3 r = cameraPosition;
-	float minT = INT_MAX;
+RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vector<ModelTriangle> triangles, glm::vec3 r){
+	//r is ray source, should not be hard coded to camera position
+	// glm::vec3 r = cameraPosition;
+	float minT = FLT_MAX;
 	ModelTriangle closestTriangle;
 	size_t triangleIndex;
 	bool intersectionFound = false;
+    glm::vec3 intersectionPoint = glm::vec3(0);
+
 
 	for (int i=0; i<triangles.size(); i++){
 		ModelTriangle triangle=triangles[i];
 		glm::vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
 		glm::vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
-		glm::vec3 SPVector = cameraPosition - triangle.vertices[0];
+		glm::vec3 SPVector = r - triangle.vertices[0];
 		glm::mat3 DEMatrix(-rayDirection, e0, e1);
 		glm::vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
 
@@ -201,7 +201,7 @@ RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vec
 				minT=possibleSolution[0];
 				closestTriangle=triangle;
 				triangleIndex=i;
-				r = triangle.vertices[0] + possibleSolution[1]*e0 + possibleSolution[2]*e1;
+				intersectionPoint = triangle.vertices[0] + possibleSolution[1]*e0 + possibleSolution[2]*e1;
 			}
 		}
 	}
@@ -210,7 +210,7 @@ RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vec
 		return RayTriangleIntersection(glm::vec3(0), -1, ModelTriangle(), 0);
 	}
 
-	RayTriangleIntersection intersectionDetails (r, minT, closestTriangle, triangleIndex);
+	RayTriangleIntersection intersectionDetails (intersectionPoint, minT, closestTriangle, triangleIndex);
 	return intersectionDetails;
 }
 
@@ -550,29 +550,31 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
             glm::vec3 pixelInCam = glm::vec3(u, v, -focalLength);
             glm::vec3 rayDirection = glm::normalize(pixelInCam * cameraOrientation);
 
-            RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles);
+            RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles, cameraPosition);
 
 			//occlusion check (skip if no intersection)
             if (intersectionDetails.distanceFromCamera == -1) {continue;} 
 
 			float intensity;
 			if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
-				//std::cout<<"cornell-box"<<std::endl;
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
+				Colour oldColour = intersectionDetails.intersectedTriangle.colour;
+				Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
+				window.setPixelColour(x, y, convertColour(newColour));
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
 				intensity = phong(intersectionDetails, lightSource, triangles);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
+				intensity = genericShading(intersectionDetails, lightSource, triangles);
+			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
+				glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
+				glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+				glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
+				intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
 			}else{
 				intensity = 0;
 				std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
 			}
-
-
-			// float intensity = gouraud(intersectionDetails, lightSource, triangles);
-			// float intensity = genericShading(intersectionDetails, lightSource, triangles);
-			//float intensity = phong(intersectionDetails, lightSource, triangles);
-
 
 			Colour oldColour = intersectionDetails.intersectedTriangle.colour;
 			Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
@@ -680,6 +682,10 @@ int main(int argc, char *argv[]) {
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
+
+	//hardcodes front of blue box to be a mirror
+	indexToFile[26] = "mirror";
+	indexToFile[31] = "mirror";
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
