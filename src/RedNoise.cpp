@@ -19,8 +19,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -538,6 +538,17 @@ float genericShading(RayTriangleIntersection intersectionDetails, glm::vec3 ligh
 	return intensity;
 }
 
+glm::vec3 randomlyChange(glm::vec3 normal, float strength){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+	std::normal_distribution<> Ndist(0.0, 0.005);
+    for (int i=0; i<3; i++){
+		float rand = Ndist(gen);
+		normal[i] = normal[i]+(rand*strength);
+	}
+	return normal;
+}
+
 void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile) {
     int focalLength = 2;
 	glm::vec3 lightSource(0,0.9,0);
@@ -566,7 +577,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
-				glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
+				glm::vec3 normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
 				glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 				glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 				intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
@@ -781,9 +792,10 @@ int main(int argc, char *argv[]) {
 				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
 				lightingMode[2] = abs(lightingMode[2]-1);
 			}
+		render(triangles, window, indexToFile);
+		window.renderFrame();
 	}
 
-	render(triangles, window, indexToFile);
-	window.renderFrame();
+
 }
 }
