@@ -607,7 +607,14 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 
 void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile) {
     int focalLength = 2;
-	glm::vec3 lightSource(0,0.9,0);
+	// glm::vec3 lightSource(-0.8,0.9,-0.8); //back-left
+	// glm::vec3 lightSource(0.8,0.9,-0.8); //back-right
+	// glm::vec3 lightSource(-0.8,0.9,0.8); //front-left
+	// glm::vec3 lightSource(0.8,0.9,0.8); //front-right
+	// glm::vec3 lightSource(0,0.9,0); //middle
+
+	//bl, br, fl, fr
+	std::array<glm::vec3,4> lightSources = {(-0.8,0.9,-0.8),(0.8,0.9,-0.8),(-0.8,0.9,0.8),(0.8,0.9,0.8)};
 
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
