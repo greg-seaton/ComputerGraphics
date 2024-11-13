@@ -27,9 +27,9 @@ glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
 renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
-bool USE_MIRROR = 1;
-bool METALIC_MIRROR = 1;
-bool USE_TEXTURED_FLOOR = 1;
+bool USE_MIRROR = 0;
+bool METALIC_MIRROR = 0;
+bool USE_TEXTURED_FLOOR = 0;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -316,6 +316,10 @@ void sortByY(std::vector<CanvasPoint>& points) {
 std::vector<CanvasPoint> lineValuesWithDepth(CanvasPoint from, CanvasPoint to){
 
 	if (!from.depth || !to.depth){
+		from.depth = 0;
+		to.depth = 0;
+		//absurdly janky solution :/
+		//seems to cause a memory leak issue at a certain stage in the rasterise orbit
 		std::cout << "from or to have no depth value!" << std::endl;
 	}
 
@@ -562,8 +566,9 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 }
 
 
-//have (somewhat unintentionally) caused light to drop off really quickly with distance
+//have (somewhat unintentionally) caused light to drop off really quickly with distance. (aoi too strong?)
 //if this is fixed it will hopefully be possible to combine the generic shading functions together
+//fiddle about with adding 0.2 and such. key would be to get a *4 shadow that is the same darkness as the non MLS one
 float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
@@ -591,7 +596,8 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 	
 	//increase intensity to make the effect more obvious
 	intensity *= intensityCompensator;
-
+	intensity +=0.2;
+	if (intensity <0.2) return 0.2;
 	if (intensity>1) return 1;
 	return intensity;
 }
@@ -787,7 +793,7 @@ float convertDegrees(float degrees) {
     return degrees * (pi / 180);
 }
 
-void render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources){
+int render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber){
 	if (renderMode==WIREFRAME){
 		drawWireframe(triangles,window);
 	} else if (renderMode==RASTERISE){
@@ -797,6 +803,11 @@ void render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::u
 	} else{
 		std::cout<<"render type unknown"<<std::endl;
 	}
+	// window.savePPM("frame_" + std::to_string(frameNumber) + ".ppm");
+
+	window.renderFrame();
+
+	return frameNumber++;
 	// std::cout<<"render completed"<<std::endl;
 }
 
@@ -837,18 +848,23 @@ int main(int argc, char *argv[]) {
 	cameraPosition = startingCamera;	
 	bool orbit = 0;
 
+	//far corners
 	//bl, br, fl, fr
-	// std::vector<glm::vec3> lightSources {
-	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
-	// 	glm::vec3(0.8f, 0.9f, 0.8f)
-	// };
+	std::vector<glm::vec3> lightSources {
+		glm::vec3(-0.2f, 0.9f, -0.2f),
+		glm::vec3(0.2f, 0.9f, -0.2f),
+		glm::vec3(-0.2f, 0.9f, 0.2f),
+		glm::vec3(0.2f, 0.9f, 0.2f)
+	};
+
+	//flight corners
 
 	//middle
-	std::vector<glm::vec3> lightSources {
-		glm::vec3 (0,0.9,0)
-	};
+	// std::vector<glm::vec3> lightSources {
+	// 	glm::vec3 (0,0.9,0)
+	// };
+
+
 
 	while (true) {
 
@@ -919,7 +935,7 @@ int main(int argc, char *argv[]) {
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_m){
 				std::cout << "m down - raytrace" << std::endl;
-				render(triangles, window, indexToFile, lightSources);
+				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
 				renderMode = RAYTRACE;
 			}
@@ -939,11 +955,79 @@ int main(int argc, char *argv[]) {
 				lightingMode[2] = abs(lightingMode[2]-1);
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
-				render(triangles, window, indexToFile, lightSources);
+				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
 			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
+
+				// HOW TO SET UP SEQUENCE:
+				// use window.savePPM with incrementing frame count
+					// window.savePPM("frame_" + std::to_string(frameNumber) + ".ppm");
+					// run this after each window.renderFrame()
+				// ffmpeg -framerate 25 -i frame_%d.ppm -c:v libx264 -movflags +faststart output.mp4
+
+
+
+				std::cout << "z down - sequence" <<std::endl;
+				int frameNumber=0;
+
+				// //wireframe orbit
+				// for (int i=0; i<36; i++){
+				// 	window.clearPixels();
+				// 	memset(DepthArray, 0, sizeof(DepthArray));
+				// 	rotateAboutOrigin(convertDegrees(10));
+				// 	lookAt(glm::vec3 (0,0,0));
+				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				// }
+
+				// //rasterise orbit
+				// renderMode = RASTERISE;
+				// for (int i=0; i<36; i++){
+				// 	window.clearPixels();
+				// 	memset(DepthArray, 0, sizeof(DepthArray));
+				// 	rotateAboutOrigin(convertDegrees(10));
+				// 	lookAt(glm::vec3 (0,0,0));
+				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				// }
+				// memset(DepthArray, 0, sizeof(DepthArray));
+
+
+				// //ratrace orbit
+				// renderMode = RAYTRACE;
+				// for (int i=0; i<36; i++){
+				// 	window.clearPixels();
+				// 	rotateAboutOrigin(convertDegrees(10));
+				// 	lookAt(glm::vec3 (0,0,0));
+				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				// }
+				// window.clearPixels();
+				USE_MIRROR = 1;
+				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				// window.clearPixels();
+				METALIC_MIRROR = 1;
+				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				// window.clearPixels();
+				USE_TEXTURED_FLOOR = 1;
+				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				for (int i = 0; i < 5; i++) {
+					float shift = 1.0f - i * 0.2f;
+					window.clearPixels();
+					std::vector<glm::vec3> lightSources = {
+						glm::vec3(-0.8f * shift, 0.9f, -0.8f * shift),
+						glm::vec3(0.8f * shift, 0.9f, -0.8f * shift),
+						glm::vec3(-0.8f * shift, 0.9f, 0.8f * shift),
+						glm::vec3(0.8f * shift, 0.9f, 0.8f * shift)
+					};
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				std::cout<<"sequence end"<<std::endl;
+			}
 	}
-
-
 }
 }
