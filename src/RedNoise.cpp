@@ -19,14 +19,16 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
 renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
+USE_MIRROR = FALSE;
+USE_TEXTURED-FLOOR = FALSE;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -187,9 +189,6 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 
     //normalise accumulated normals, and assign to each vertex
     for (int j=0; j<triangles.size(); j++) {
-		std::cout<<j<<","<<triangles[j].texturePoints[0]<<std::endl;
-		std::cout<<j<<","<<triangles[j].texturePoints[1]<<std::endl;
-		std::cout<<j<<","<<triangles[j].texturePoints[2]<<std::endl;
         for (int i = 0; i < 3; ++i) {
             int vertexIndex = triangles[j].vertexIndex[i];
             triangles[j].normals[i] = glm::normalize(vertexNormals[vertexIndex]);
@@ -590,10 +589,8 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 				barycentrics[0]*intersectionDetails.intersectedTriangle.texturePoints[1].y+
 				barycentrics[2]*intersectionDetails.intersectedTriangle.texturePoints[2].y;
 
-	std::cout<<u<<","<<v<<std::endl;
-
-	float textureXdistance = u*texture.width;
-	float textureYdistance = v*texture.height;
+	int textureXdistance = round(u*texture.width);
+	int textureYdistance = round(v*texture.height);
 	//grab pixel
 	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];
 	//convert to RGB format so it can be manipulated by intensity later
@@ -602,7 +599,6 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 	uint8_t b = pixel & 0xFF;
 
 	return Colour(r,g,b);
-
 }
 
 void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile) {
@@ -611,7 +607,6 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
-
 
     for (size_t y = 0; y < HEIGHT; y++) {
         for (size_t x = 0; x < WIDTH; x++) {
@@ -636,7 +631,6 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				intensity = phong(intersectionDetails, lightSource, triangles);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 
-
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
@@ -647,8 +641,14 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 				glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 				intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-				oldColour = intersectionDetails.intersectedTriangle.colour;
-
+				// std::cout<<intersectionDetails.triangleIndex<<std::endl;
+				// std::cout<<triangles.size()<<std::endl;
+				// if (intersectionDetails.triangleIndex==6 || intersectionDetails.triangleIndex==13){
+				if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
+					oldColour = texture3D(intersectionDetails, texture, pixels);
+				} else{
+					oldColour = intersectionDetails.intersectedTriangle.colour;
+				}
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
 
 			}else{
