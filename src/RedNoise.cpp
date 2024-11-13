@@ -19,8 +19,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -520,12 +520,13 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 		return intensity;
 }
 
-float phong(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, std::vector<ModelTriangle> triangles){
+//multiple light sources might not be 100%, looks decent though
+//wait until other people have made progress on it
+float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	//commented out to allow sphere to only use angle of incidence
 	// if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
 	// 		return 0.2;
 	// }
-
 
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
@@ -533,22 +534,37 @@ float phong(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, 
 	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint, intersectionDetails.intersectedTriangle);
 	glm::vec3 vertexNormal = barycentrics[1]*normals[0] + barycentrics[0]*normals[1] + barycentrics[2]*normals[2];
 
-	float intensityP = proximityLighting(Vertex, lightSource, 5);
-	float intensityA = aoiLighting(Vertex, lightSource, vertexNormal, 10);
-	float intensityS = 2*specularLighting(Vertex, lightSource, vertexNormal, viewVector, 256);
+	float intensityCompensator = lightSources.size();
 
-    intensityP = glm::clamp(intensityP, 0.0f, 1.0f);
-    intensityA = glm::clamp(intensityA, 0.0f, 1.0f);
-    intensityS = glm::clamp(intensityS, 0.0f, 1.0f);
+	std::vector<float> intensities;
+	for (glm::vec3 lightSource:lightSources){
+		float intensityP = proximityLighting(Vertex, lightSource, 5);
+		float intensityA = 2*aoiLighting(Vertex, lightSource, vertexNormal, 10);
+		float intensityS = 2*specularLighting(Vertex, lightSource, vertexNormal, viewVector, 256);
+
+		intensityP = glm::clamp(intensityP, 0.0f, 1.0f);
+		intensityA = glm::clamp(intensityA, 0.0f, 1.0f);
+		intensityS = glm::clamp(intensityS, 0.0f, 1.0f);
+
+		intensities.push_back((0.2/intensityCompensator+(intensityP*intensityA)+(intensityS*intensityA))/intensityCompensator);
+	}
+
+	float intensity=0;
+	for (float item:intensities){
+		intensity += item;
+	}
 
 	//could fiddle about with this
-	float intensity = 0.2+(intensityP*intensityA)+(intensityS*intensityA);
+	intensity *= intensityCompensator;
 	if (intensity>1) return 1;	
 
 	return intensity;
 }
 
-float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
+
+//have (somewhat unintentionally) caused light to drop off really quickly with distance
+//if this is fixed it will hopefully be possible to combine the generic shading functions together
+float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
@@ -575,6 +591,32 @@ float genericShading(RayTriangleIntersection intersectionDetails, std::vector<gl
 	
 	//increase intensity to make the effect more obvious
 	intensity *= intensityCompensator;
+
+	if (intensity>1) return 1;
+	return intensity;
+}
+
+float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
+	//redirects to generic shading for multiple light sources
+	if (lightSources.size()>1){
+		return genericShadingMLS(intersectionDetails, lightSources, triangles);
+	}
+	glm::vec3 lightSource = lightSources[0];
+	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
+	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
+	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
+
+	float intensity;
+	if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
+		intensity = 0.2;
+	}
+	else{
+		float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
+		float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
+		float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
+		intensity = 0.2+(intensityP*intensityA)+intensityS;
+	}
+
 
 	if (intensity>1) return 1;
 	return intensity;
@@ -617,21 +659,9 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 	return Colour(r,g,b);
 }
 
-void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile) {
+void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
     int focalLength = 2;
-	// glm::vec3 lightSource(-0.8,0.9,-0.8); //back-left
-	// glm::vec3 lightSource(0.8,0.9,-0.8); //back-right
-	// glm::vec3 lightSource(-0.8,0.9,0.8); //front-left
-	// glm::vec3 lightSource(0.8,0.9,0.8); //front-right
-	glm::vec3 lightSource(0,0.9,0); //middle
 
-	//bl, br, fl, fr
-	std::vector<glm::vec3> lightSources {
-		glm::vec3(-0.8f, 0.9f, -0.8f),
-		glm::vec3(0.8f, 0.9f, -0.8f),
-		glm::vec3(-0.8f, 0.9f, 0.8f),
-		glm::vec3(0.8f, 0.9f, 0.8f)
-	};
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
 
@@ -655,7 +685,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 				
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
-				intensity = phong(intersectionDetails, lightSource, triangles);
+				intensity = phong(intersectionDetails, lightSources, triangles);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
@@ -757,13 +787,13 @@ float convertDegrees(float degrees) {
     return degrees * (pi / 180);
 }
 
-void render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile){
+void render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources){
 	if (renderMode==WIREFRAME){
 		drawWireframe(triangles,window);
 	} else if (renderMode==RASTERISE){
 		draw3DTriangles(triangles, window);
 	} else if (renderMode==RAYTRACE){
-		drawRayTraced(triangles, window, indexToFile);
+		drawRayTraced(triangles, window, indexToFile, lightSources);
 	} else{
 		std::cout<<"render type unknown"<<std::endl;
 	}
@@ -806,6 +836,19 @@ int main(int argc, char *argv[]) {
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
 	bool orbit = 0;
+
+	//bl, br, fl, fr
+	// std::vector<glm::vec3> lightSources {
+	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
+	// 	glm::vec3(0.8f, 0.9f, 0.8f)
+	// };
+
+	//middle
+	std::vector<glm::vec3> lightSources {
+		glm::vec3 (0,0.9,0)
+	};
 
 	while (true) {
 
@@ -876,6 +919,8 @@ int main(int argc, char *argv[]) {
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_m){
 				std::cout << "m down - raytrace" << std::endl;
+				render(triangles, window, indexToFile, lightSources);
+				window.renderFrame();
 				renderMode = RAYTRACE;
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
@@ -893,8 +938,10 @@ int main(int argc, char *argv[]) {
 				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
 				lightingMode[2] = abs(lightingMode[2]-1);
 			}
-		render(triangles, window, indexToFile);
-		window.renderFrame();
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
+				render(triangles, window, indexToFile, lightSources);
+				window.renderFrame();
+			}
 	}
 
 
