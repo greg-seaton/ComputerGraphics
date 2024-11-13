@@ -19,8 +19,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -35,7 +35,7 @@ uint32_t convertColour(const Colour& colour) {
            (static_cast<uint32_t>(colour.blue));
 }
 
-std::tuple<std::vector<Colour>, std::vector<std::string>> MTLparser (std::string fileLocation){
+std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> MTLparser (std::string fileLocation){
 	//convert file to a vector of lines
 
 	std::string line;
@@ -48,6 +48,7 @@ std::tuple<std::vector<Colour>, std::vector<std::string>> MTLparser (std::string
 
 	std::vector<Colour> ColourValues;
 	std::vector<std::string> ColourNames;
+	std::vector<std::string> TextureFiles;
 
     for (size_t i = 0; i < lines.size(); i += 3) {
 		//adds all the colour names to a vector
@@ -67,12 +68,19 @@ std::tuple<std::vector<Colour>, std::vector<std::string>> MTLparser (std::string
 
 		//adds Colour models to ColourValues
 		ColourValues.push_back(Colour(ColourRGB[0],ColourRGB[1],ColourRGB[2]));
+
+		if (!lines[i+2].empty()){
+			TextureFiles.push_back(split(lines[i+2], ' ')[1]);
+			i++; //extra i++ for if theres the extra texutre line
+		} else{
+			TextureFiles.push_back("");
+		}
 	}
 
-    return std::make_tuple(ColourValues, ColourNames);
+    return std::make_tuple(ColourValues, ColourNames, TextureFiles);
 }
 
-std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::vector<Colour>, std::vector<std::string>> colours, float scaler, glm::vec3 offset){
+std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours, float scaler, glm::vec3 offset){
     std::vector<Colour> colourValues = std::get<0>(colours);
     std::vector<std::string> colourNames = std::get<1>(colours);
 
@@ -125,13 +133,12 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 		} else if (l.substr(0, 2) == "f ") {
 			//splits line into the three triangle indexes
             std::vector<std::string> triangleVerticesIndex = split(l.substr(2), ' ');
-			if (!split(triangleVerticesIndex[0],'/')[1].empty()){
-				std::cout<<"need to deal with texture point"<<std::endl;
-				//good start here, just need to add them as texture points
-				//set it up so the rest of the code will work without an else statement :)
+			//grabs the potential spot for a texture point index
+			//if it is empty, there is no texture point here.
+			std::string tpIndex0 = split(triangleVerticesIndex[0],'/')[1];
+			std::string tpIndex1 = split(triangleVerticesIndex[1],'/')[1];
+			std::string tpIndex2 = split(triangleVerticesIndex[2],'/')[1];
 
-
-			}
             std::vector<size_t> triangleVerticesIntIndex;
             for (const std::string& item : triangleVerticesIndex) {
                 int itemInt = std::stoi(item) - 1;
@@ -145,6 +152,15 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
                 vertices[triangleVerticesIntIndex[2]],
                 colour
             );
+
+			//if there is a texture points, grab the corresponding one and put it in triangle.texturePoints
+			if (!tpIndex0.empty()){
+				triangle.texturePoints[0] = texturePoints[std::stoi(tpIndex0)-1];
+				triangle.texturePoints[1] = texturePoints[std::stoi(tpIndex1)-1];
+				triangle.texturePoints[2] = texturePoints[std::stoi(tpIndex2)-1];
+
+			}
+
 			std::array<int, 3> indexes = { static_cast<int>(triangleVerticesIntIndex[0]),
                                 static_cast<int>(triangleVerticesIntIndex[1]),
                                 static_cast<int>(triangleVerticesIntIndex[2]) };			
@@ -171,16 +187,14 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 
     //normalise accumulated normals, and assign to each vertex
     for (int j=0; j<triangles.size(); j++) {
-		// std::cout<<triangles[j].name<<std::endl;
+		std::cout<<j<<","<<triangles[j].texturePoints[0]<<std::endl;
+		std::cout<<j<<","<<triangles[j].texturePoints[1]<<std::endl;
+		std::cout<<j<<","<<triangles[j].texturePoints[2]<<std::endl;
         for (int i = 0; i < 3; ++i) {
             int vertexIndex = triangles[j].vertexIndex[i];
             triangles[j].normals[i] = glm::normalize(vertexNormals[vertexIndex]);
         }
     }
-
-	for (TexturePoint tp: texturePoints){
-		std::cout<<tp<<std::endl;
-	}
 
 	std::cout<<"obj parser done"<<std::endl;
 
@@ -565,9 +579,39 @@ glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 	return normal;
 }
 
+Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture, std::vector<uint32_t> pixels){
+	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
+
+	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.texturePoints[0].x+
+				barycentrics[0]*intersectionDetails.intersectedTriangle.texturePoints[1].x+
+				barycentrics[2]*intersectionDetails.intersectedTriangle.texturePoints[2].x;
+
+	float v = barycentrics[1]*intersectionDetails.intersectedTriangle.texturePoints[0].y+
+				barycentrics[0]*intersectionDetails.intersectedTriangle.texturePoints[1].y+
+				barycentrics[2]*intersectionDetails.intersectedTriangle.texturePoints[2].y;
+
+	std::cout<<u<<","<<v<<std::endl;
+
+	float textureXdistance = u*texture.width;
+	float textureYdistance = v*texture.height;
+	//grab pixel
+	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];
+	//convert to RGB format so it can be manipulated by intensity later
+	uint8_t r = (pixel >> 16) & 0xFF;
+	uint8_t g = (pixel >> 8) & 0xFF;
+	uint8_t b = pixel & 0xFF;
+
+	return Colour(r,g,b);
+
+}
+
 void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile) {
     int focalLength = 2;
 	glm::vec3 lightSource(0,0.9,0);
+
+	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
+	std::vector<uint32_t> pixels = texture.pixels;
+
 
     for (size_t y = 0; y < HEIGHT; y++) {
         for (size_t x = 0; x < WIDTH; x++) {
@@ -582,28 +626,36 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 			//occlusion check (skip if no intersection)
             if (intersectionDetails.distanceFromCamera == -1) {continue;} 
 
+			Colour oldColour;
 			float intensity;
 			if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
-				Colour oldColour = intersectionDetails.intersectedTriangle.colour;
-				Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
-				window.setPixelColour(x, y, convertColour(newColour));
+				oldColour = intersectionDetails.intersectedTriangle.colour;
+				
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
 				intensity = phong(intersectionDetails, lightSource, triangles);
+				oldColour = intersectionDetails.intersectedTriangle.colour;
+
+
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
+				oldColour = texture3D(intersectionDetails, texture, pixels);
+
+				//use texutre points to get the corresponding colour (proportion of the width and height along the texture map)
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
 				glm::vec3 normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
 				glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 				glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 				intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
+				oldColour = intersectionDetails.intersectedTriangle.colour;
+
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
+
 			}else{
 				intensity = 0;
 				std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
 			}
 
-			Colour oldColour = intersectionDetails.intersectedTriangle.colour;
 			Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
 			window.setPixelColour(x, y, convertColour(newColour));
     
@@ -696,7 +748,8 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
@@ -714,13 +767,13 @@ int main(int argc, char *argv[]) {
 	indexToFile[26] = "mirror";
 	indexToFile[31] = "mirror";
 
+	//hardcodes the floor to be textured
+	indexToFile[6] = "textured-floor";
+	indexToFile[7] = "textured-floor";
+
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
 	bool orbit = 0;
-	// drawRayTraced(triangles, window);
-	// draw3DTriangles(triangles, window);
-	// window.renderFrame();
-	// std::cout<<"starting frame rendered"<<std::endl;
 
 	while (true) {
 
