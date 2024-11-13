@@ -19,16 +19,17 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
 renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
-USE_MIRROR = FALSE;
-USE_TEXTURED-FLOOR = FALSE;
+bool USE_MIRROR = 1;
+bool METALIC_MIRROR = 1;
+bool USE_TEXTURED_FLOOR = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -108,6 +109,7 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
             while (colourNames[index] != colourName) {
 				if (index>=colourNames.size()){
 					std::cout<<"colour name not found"<<std::endl;
+					std::cout<<colourName<<std::endl;
 					break;
 				}
                 index++;
@@ -499,11 +501,11 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 
 			glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 
-			float intensityP = 2*proximityLighting(Vertex, lightSource, 5);
+			float intensityP = proximityLighting(Vertex, lightSource, 5);
 			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
 			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
 
-			vertexIntensities[i] = 0.2+(intensityP*intensityA)+intensityS;
+			vertexIntensities[i] = 0.2+(2*intensityP*intensityA)+intensityS;
 			if (vertexIntensities[i]>1) vertexIntensities[i]=1;
 		}
 
@@ -556,12 +558,11 @@ float genericShading(RayTriangleIntersection intersectionDetails, glm::vec3 ligh
 		intensity = 0.2;
 	}
 	else{
-		float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
+		float intensityP = 1.7*proximityLighting(Vertex, lightSource, 5);
 		float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
 		float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
 		intensity = 0.2+(intensityP*intensityA)+intensityS;
 	}
-
 
 	if (intensity>1) return 1;
 	return intensity;
@@ -579,6 +580,9 @@ glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 }
 
 Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture, std::vector<uint32_t> pixels){
+	if (USE_TEXTURED_FLOOR==0){
+		return intersectionDetails.intersectedTriangle.colour;
+	}
 	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
 
 	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.texturePoints[0].x+
@@ -635,17 +639,20 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				intensity = genericShading(intersectionDetails, lightSource, triangles);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
 
-				//use texutre points to get the corresponding colour (proportion of the width and height along the texture map)
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
-				glm::vec3 normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
-				glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
-				glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
-				intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-				// std::cout<<intersectionDetails.triangleIndex<<std::endl;
-				// std::cout<<triangles.size()<<std::endl;
-				// if (intersectionDetails.triangleIndex==6 || intersectionDetails.triangleIndex==13){
-				if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
-					oldColour = texture3D(intersectionDetails, texture, pixels);
+				if (USE_MIRROR == 1){
+					glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
+					if (METALIC_MIRROR == 1){
+						normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
+					}
+					glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+					glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
+					intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
+					if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
+						oldColour = texture3D(intersectionDetails, texture, pixels);
+					} else{
+						oldColour = intersectionDetails.intersectedTriangle.colour;
+					}
 				} else{
 					oldColour = intersectionDetails.intersectedTriangle.colour;
 				}
@@ -751,6 +758,8 @@ int main(int argc, char *argv[]) {
 	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
+
+	//have hardcoded texture file to remove instances of cobbles (replaced with green)
 	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
@@ -761,6 +770,7 @@ int main(int argc, char *argv[]) {
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
+
 
 
 	//hardcodes front of blue box to be a mirror
