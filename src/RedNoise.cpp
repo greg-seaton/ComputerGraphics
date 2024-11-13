@@ -19,8 +19,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -548,21 +548,33 @@ float phong(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, 
 	return intensity;
 }
 
-float genericShading(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, std::vector<ModelTriangle> triangles){
+float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
+	float intensityCompensator = 3;
+	float lightSourceReduction = lightSources.size();
 
-	float intensity;
-	if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
-		intensity = 0.2;
+	std::vector<float> intensities;
+	for (glm::vec3 lightSource:lightSources){
+		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
+			intensities.push_back((0.2/intensityCompensator) / lightSourceReduction);
+		}
+		else{
+			float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
+			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
+			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
+			intensities.push_back(((intensityP*intensityA)+intensityS)/lightSourceReduction);
+		}
 	}
-	else{
-		float intensityP = 1.7*proximityLighting(Vertex, lightSource, 5);
-		float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
-		float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
-		intensity = 0.2+(intensityP*intensityA)+intensityS;
+
+	float intensity=0;
+	for (float item:intensities){
+		intensity += item;
 	}
+	
+	//increase intensity to make the effect more obvious
+	intensity *= intensityCompensator;
 
 	if (intensity>1) return 1;
 	return intensity;
@@ -611,11 +623,15 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 	// glm::vec3 lightSource(0.8,0.9,-0.8); //back-right
 	// glm::vec3 lightSource(-0.8,0.9,0.8); //front-left
 	// glm::vec3 lightSource(0.8,0.9,0.8); //front-right
-	// glm::vec3 lightSource(0,0.9,0); //middle
+	glm::vec3 lightSource(0,0.9,0); //middle
 
 	//bl, br, fl, fr
-	std::array<glm::vec3,4> lightSources = {(-0.8,0.9,-0.8),(0.8,0.9,-0.8),(-0.8,0.9,0.8),(0.8,0.9,0.8)};
-
+	std::vector<glm::vec3> lightSources {
+		glm::vec3(-0.8f, 0.9f, -0.8f),
+		glm::vec3(0.8f, 0.9f, -0.8f),
+		glm::vec3(-0.8f, 0.9f, 0.8f),
+		glm::vec3(0.8f, 0.9f, 0.8f)
+	};
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
 
@@ -635,7 +651,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 			Colour oldColour;
 			float intensity;
 			if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
-				intensity = genericShading(intersectionDetails, lightSource, triangles);
+				intensity = genericShading(intersectionDetails, lightSources, triangles);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 				
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
@@ -643,7 +659,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
-				intensity = genericShading(intersectionDetails, lightSource, triangles);
+				intensity = genericShading(intersectionDetails, lightSources, triangles);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
@@ -663,7 +679,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				} else{
 					oldColour = intersectionDetails.intersectedTriangle.colour;
 				}
-				intensity = genericShading(intersectionDetails, lightSource, triangles);
+				intensity = genericShading(intersectionDetails, lightSources, triangles);
 
 			}else{
 				intensity = 0;
@@ -672,7 +688,6 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 
 			Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
 			window.setPixelColour(x, y, convertColour(newColour));
-    
         }
     }	
 }
