@@ -19,13 +19,13 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
-renderType renderMode = RAYTRACE;
+renderType renderMode = RASTERISE;
 std::array<bool, 3> lightingMode = {0,0,0};
 bool USE_MIRROR = 1;
 bool METALIC_MIRROR = 1;
@@ -836,6 +836,7 @@ int main(int argc, char *argv[]) {
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
+	//blue box is indexes 22-31
 
 
 	//hardcodes front of blue box to be a mirror
@@ -969,6 +970,8 @@ int main(int argc, char *argv[]) {
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_n){
 				std::cout << "n down - rasterise" << std::endl;
 				renderMode = RASTERISE;
+				render(triangles, window, indexToFile, lightSources,0);
+				window.renderFrame();
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_m){
 				std::cout << "m down - raytrace" << std::endl;
@@ -1007,6 +1010,99 @@ int main(int argc, char *argv[]) {
 				window.renderFrame();
 				std::cout<<"light source switched"<<std::endl;
 
+			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_f){
+				std::cout << "f down, move up and then do a backflip" << std::endl;
+
+				int frameNumber = 0;
+
+				// Step 1: Move triangles up
+				for (int i = 0; i < 5; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						// Move vertices up
+						triangles[j].vertices[0].y += 0.05;
+						triangles[j].vertices[1].y += 0.05;
+						triangles[j].vertices[2].y += 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
+
+				// Step 2: Perform the backflip
+				float angleIncrement = convertDegrees(6);
+
+				for (int s=0; s<60; s++) {
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						 // Step 1: Calculate the centroid of the triangle as the local X-axis origin
+
+						float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3.0f;
+						float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3.0f;
+						float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3.0f;
+
+						float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3.0f;
+						float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3.0f;
+						float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3.0f;
+
+						float topMiddleX = (topMiddleX1 + topMiddleX2)/2;
+						float topMiddleY = (topMiddleY1 + topMiddleY2)/2;
+						float topMiddleZ = (topMiddleZ1 + topMiddleZ2)/2;
+
+						float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3.0f;
+						float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3.0f;
+						float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3.0f;
+
+						float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3.0f;
+						float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3.0f;
+						float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3.0f;
+
+						float botMiddleX = (botMiddleX1 + botMiddleX2)/2;
+						float botMiddleY = (botMiddleY1 + botMiddleY2)/2;
+						float botMiddleZ = (botMiddleZ1 + botMiddleZ2)/2;
+
+						float centroidX = topMiddleX + botMiddleX/2;
+						float centroidY = topMiddleY + botMiddleY/2;
+						float centroidZ = topMiddleZ + botMiddleZ/2;
+
+						for (int k = 0; k < 3; k++) {
+							// Get current vertex
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;  // Assuming z is used for 3D space
+
+							// Apply rotation around the local X-axis
+							float rotatedY = y * cos(angleIncrement) - z * sin(angleIncrement);
+							float rotatedZ = y * sin(angleIncrement) + z * cos(angleIncrement);
+
+							// Translate vertex back to its original position
+							triangles[j].vertices[k].x = x + centroidX;
+							triangles[j].vertices[k].y = rotatedY + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
+
+				//step 3, move back down
+				for (int i = 0; i < 5; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						// Move vertices up
+						triangles[j].vertices[0].y -= 0.05;
+						triangles[j].vertices[1].y -= 0.05;
+						triangles[j].vertices[2].y -= 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
