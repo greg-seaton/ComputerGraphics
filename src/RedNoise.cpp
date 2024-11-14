@@ -538,9 +538,10 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint, intersectionDetails.intersectedTriangle);
 	glm::vec3 vertexNormal = barycentrics[1]*normals[0] + barycentrics[0]*normals[1] + barycentrics[2]*normals[2];
 
+	float ambientIntensity = 0.2;
 	float intensityCompensator = lightSources.size();
 
-	std::vector<float> intensities;
+	float intensity = 0;
 	for (glm::vec3 lightSource:lightSources){
 		float intensityP = proximityLighting(Vertex, lightSource, 5);
 		float intensityA = 2*aoiLighting(Vertex, lightSource, vertexNormal, 10);
@@ -550,19 +551,14 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 		intensityA = glm::clamp(intensityA, 0.0f, 1.0f);
 		intensityS = glm::clamp(intensityS, 0.0f, 1.0f);
 
-		intensities.push_back((0.2/intensityCompensator+(intensityP*intensityA)+(intensityS*intensityA))/intensityCompensator);
+		intensity += (intensityP*intensityA)+(intensityS*intensityA) + ambientIntensity;
 	}
 
-	float intensity=0;
-	for (float item:intensities){
-		intensity += item;
-	}
-
-	//could fiddle about with this
-	intensity *= intensityCompensator;
-	if (intensity>1) return 1;	
-
-	return intensity;
+    float reducedIntensity = (intensity / intensityCompensator);
+	
+	if (reducedIntensity <ambientIntensity) return ambientIntensity;
+	if (reducedIntensity>1) return 1;
+	return reducedIntensity;
 }
 
 
@@ -572,24 +568,24 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 	float lightSourceReduction = lightSources.size();
-	float shadowIntensity = 0.2;
+	float ambientIntensity = 0.2;
 
 	float intensity=0;
 	for (glm::vec3 lightSource:lightSources){
 		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
-			intensity = intensity + (shadowIntensity);
+			intensity = intensity + ambientIntensity;
 		}
 		else{
 			float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
 			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
 			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
-            intensity += (intensityP * intensityA) + intensityS + (shadowIntensity);
+            intensity += (intensityP * intensityA) + intensityS + (ambientIntensity);
 		}
 	}
 
     float reducedIntensity = (intensity / lightSourceReduction);
 	
-	if (reducedIntensity <shadowIntensity) return shadowIntensity;
+	if (reducedIntensity <ambientIntensity) return ambientIntensity;
 	if (reducedIntensity>1) return 1;
 	return reducedIntensity;
 }
@@ -857,36 +853,36 @@ int main(int argc, char *argv[]) {
 	//derive this from an equation, where the centre is very strong,
 	//and the strength drops off as it gets further away (but having fewer light sources there)
 	//see the final video from the section in github
-	std::vector<glm::vec3> lightSources {
-		glm::vec3(-0.025f, 0.9f, -0.025f),
-		glm::vec3(0.025f, 0.9f, -0.025f),
-		glm::vec3(-0.025f, 0.9f, 0.025f),
-		glm::vec3(0.025f, 0.9f, 0.025f),
-		glm::vec3(-0.025f, 0.9f, -0.025f),
-		glm::vec3(0.025f, 0.9f, -0.025f),
-		glm::vec3(-0.025f, 0.9f, 0.025f),
-		glm::vec3(0.025f, 0.9f, 0.025f),
-		glm::vec3(0, 0.9f, 0),
-		glm::vec3(0, 0.9f, 0),
-		glm::vec3(0, 0.9f, 0),
-		glm::vec3(0, 0.9f, 0),
-		glm::vec3(-0.05f, 0.9f, -0.05f),
-		glm::vec3(0.05f, 0.9f, -0.05f),
-		glm::vec3(-0.05f, 0.9f, 0.05f),
-		glm::vec3(0.05f, 0.9f, 0.05f),
-		glm::vec3(-0.1f, 0.9f, -0.01f),
-		glm::vec3(0.1f, 0.9f, -0.01f),
-		glm::vec3(-0.1f, 0.9f, 0.01f),
-		glm::vec3(0.1f, 0.9f, 0.01f),			
-
-	};
-
 	// std::vector<glm::vec3> lightSources {
-	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
-	// 	glm::vec3(0.8f, 0.9f, 0.8f)
+	// 	glm::vec3(-0.025f, 0.9f, -0.025f),
+	// 	glm::vec3(0.025f, 0.9f, -0.025f),
+	// 	glm::vec3(-0.025f, 0.9f, 0.025f),
+	// 	glm::vec3(0.025f, 0.9f, 0.025f),
+	// 	glm::vec3(-0.025f, 0.9f, -0.025f),
+	// 	glm::vec3(0.025f, 0.9f, -0.025f),
+	// 	glm::vec3(-0.025f, 0.9f, 0.025f),
+	// 	glm::vec3(0.025f, 0.9f, 0.025f),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(-0.05f, 0.9f, -0.05f),
+	// 	glm::vec3(0.05f, 0.9f, -0.05f),
+	// 	glm::vec3(-0.05f, 0.9f, 0.05f),
+	// 	glm::vec3(0.05f, 0.9f, 0.05f),
+	// 	glm::vec3(-0.1f, 0.9f, -0.01f),
+	// 	glm::vec3(0.1f, 0.9f, -0.01f),
+	// 	glm::vec3(-0.1f, 0.9f, 0.01f),
+	// 	glm::vec3(0.1f, 0.9f, 0.01f),			
+
 	// };
+
+	std::vector<glm::vec3> lightSources {
+		glm::vec3(-0.8f, 0.9f, -0.8f),
+		glm::vec3(0.8f, 0.9f, -0.8f),
+		glm::vec3(-0.8f, 0.9f, 0.8f),
+		glm::vec3(0.8f, 0.9f, 0.8f)
+	};
 
 	// std::vector<glm::vec3> lightSources {
 	// 	glm::vec3(0, 0.9f, 0),
