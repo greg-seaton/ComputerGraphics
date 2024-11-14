@@ -1016,13 +1016,12 @@ int main(int argc, char *argv[]) {
 
 				int frameNumber = 0;
 
-				// Step 1: Move triangles up
+				//move rectangle up
 				for (int i = 0; i < 5; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
 					for (int j = 22; j < 32; j++){
-						// Move vertices up
 						triangles[j].vertices[0].y += 0.05;
 						triangles[j].vertices[1].y += 0.05;
 						triangles[j].vertices[2].y += 0.05;
@@ -1031,35 +1030,34 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 				}
 
-				// Step 2: Perform the backflip
-				float angleIncrement = convertDegrees(6);
+				float angleToChange = convertDegrees(6);
 
+				//make the rectangle do a backflip
 				for (int s=0; s<60; s++) {
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
 					for (int j = 22; j < 32; j++){
-						 // Step 1: Calculate the centroid of the triangle as the local X-axis origin
+						//calculate the centroid of the cubeoid
+						float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3;
+						float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3;
+						float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3;
 
-						float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3.0f;
-						float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3.0f;
-						float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3.0f;
-
-						float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3.0f;
-						float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3.0f;
-						float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3.0f;
+						float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3;
+						float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3;
+						float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3;
 
 						float topMiddleX = (topMiddleX1 + topMiddleX2)/2;
 						float topMiddleY = (topMiddleY1 + topMiddleY2)/2;
 						float topMiddleZ = (topMiddleZ1 + topMiddleZ2)/2;
 
-						float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3.0f;
-						float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3.0f;
-						float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3.0f;
+						float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3;
+						float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3;
+						float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3;
 
-						float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3.0f;
-						float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3.0f;
-						float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3.0f;
+						float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3;
+						float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3;
+						float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3;
 
 						float botMiddleX = (botMiddleX1 + botMiddleX2)/2;
 						float botMiddleY = (botMiddleY1 + botMiddleY2)/2;
@@ -1070,16 +1068,13 @@ int main(int argc, char *argv[]) {
 						float centroidZ = topMiddleZ + botMiddleZ/2;
 
 						for (int k = 0; k < 3; k++) {
-							// Get current vertex
 							float x = triangles[j].vertices[k].x - centroidX;
 							float y = triangles[j].vertices[k].y - centroidY;
-							float z = triangles[j].vertices[k].z - centroidZ;  // Assuming z is used for 3D space
+							float z = triangles[j].vertices[k].z - centroidZ;
 
-							// Apply rotation around the local X-axis
-							float rotatedY = y * cos(angleIncrement) - z * sin(angleIncrement);
-							float rotatedZ = y * sin(angleIncrement) + z * cos(angleIncrement);
+							float rotatedY = y * cos(angleToChange) - z * sin(angleToChange);
+							float rotatedZ = y * sin(angleToChange) + z * cos(angleToChange);
 
-							// Translate vertex back to its original position
 							triangles[j].vertices[k].x = x + centroidX;
 							triangles[j].vertices[k].y = rotatedY + centroidY;
 							triangles[j].vertices[k].z = rotatedZ + centroidZ;
@@ -1089,13 +1084,11 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 				}
 
-				//step 3, move back down
 				for (int i = 0; i < 5; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
 					for (int j = 22; j < 32; j++){
-						// Move vertices up
 						triangles[j].vertices[0].y -= 0.05;
 						triangles[j].vertices[1].y -= 0.05;
 						triangles[j].vertices[2].y -= 0.05;
