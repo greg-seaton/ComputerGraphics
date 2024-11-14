@@ -19,17 +19,17 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
-renderType renderMode = WIREFRAME;
+renderType renderMode = RAYTRACE;
 std::array<bool, 3> lightingMode = {0,0,0};
-bool USE_MIRROR = 0;
-bool METALIC_MIRROR = 0;
-bool USE_TEXTURED_FLOOR = 0;
+bool USE_MIRROR = 1;
+bool METALIC_MIRROR = 1;
+bool USE_TEXTURED_FLOOR = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -524,8 +524,8 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 		return intensity;
 }
 
-//multiple light sources might not be 100%, looks decent though
-//wait until other people have made progress on it
+
+//dont work fantastically for MLS, investigate this :)
 float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	//commented out to allow sphere to only use angle of incidence
 	// if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
@@ -566,40 +566,32 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 }
 
 
-//have (somewhat unintentionally) caused light to drop off really quickly with distance. (aoi too strong?)
-//if this is fixed it will hopefully be possible to combine the generic shading functions together
-//fiddle about with adding 0.2 and such. key would be to get a *4 shadow that is the same darkness as the non MLS one
+//works well, can prob be combined with genericShading now!
 float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
-	float intensityCompensator = 3;
 	float lightSourceReduction = lightSources.size();
+	float shadowIntensity = 0.2;
 
-	std::vector<float> intensities;
+	float intensity=0;
 	for (glm::vec3 lightSource:lightSources){
 		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
-			intensities.push_back((0.2/intensityCompensator) / lightSourceReduction);
+			intensity = intensity + (shadowIntensity);
 		}
 		else{
 			float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
 			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
 			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
-			intensities.push_back(((intensityP*intensityA)+intensityS)/lightSourceReduction);
+            intensity += (intensityP * intensityA) + intensityS + (shadowIntensity);
 		}
 	}
 
-	float intensity=0;
-	for (float item:intensities){
-		intensity += item;
-	}
+    float reducedIntensity = (intensity / lightSourceReduction);
 	
-	//increase intensity to make the effect more obvious
-	intensity *= intensityCompensator;
-	intensity +=0.2;
-	if (intensity <0.2) return 0.2;
-	if (intensity>1) return 1;
-	return intensity;
+	if (reducedIntensity <shadowIntensity) return shadowIntensity;
+	if (reducedIntensity>1) return 1;
+	return reducedIntensity;
 }
 
 float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
@@ -683,6 +675,16 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 
 			//occlusion check (skip if no intersection)
             if (intersectionDetails.distanceFromCamera == -1) {continue;} 
+			
+			//dont do shading on the outside of the box
+			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
+			if (glm::dot(intersectionDetails.intersectedTriangle.normal, pointToCam) > 0) {	
+				Colour oldColour = intersectionDetails.intersectedTriangle.colour;
+				Colour newColour (oldColour.red*0.4, oldColour.green*0.4, oldColour.blue*0.4); //if environment mapping is done, let it define this multiplier
+				window.setPixelColour(x, y, convertColour(newColour));
+				continue;
+			}
+
 
 			Colour oldColour;
 			float intensity;
@@ -850,12 +852,47 @@ int main(int argc, char *argv[]) {
 
 	//far corners
 	//bl, br, fl, fr
+	
+	//derive this from an equation, where the centre is very strong,
+	//and the strength drops off as it gets further away (but having fewer light sources there)
+	//see the final video from the section in github
 	std::vector<glm::vec3> lightSources {
-		glm::vec3(-0.2f, 0.9f, -0.2f),
-		glm::vec3(0.2f, 0.9f, -0.2f),
-		glm::vec3(-0.2f, 0.9f, 0.2f),
-		glm::vec3(0.2f, 0.9f, 0.2f)
+		glm::vec3(-0.025f, 0.9f, -0.025f),
+		glm::vec3(0.025f, 0.9f, -0.025f),
+		glm::vec3(-0.025f, 0.9f, 0.025f),
+		glm::vec3(0.025f, 0.9f, 0.025f),
+		glm::vec3(-0.025f, 0.9f, -0.025f),
+		glm::vec3(0.025f, 0.9f, -0.025f),
+		glm::vec3(-0.025f, 0.9f, 0.025f),
+		glm::vec3(0.025f, 0.9f, 0.025f),
+		glm::vec3(0, 0.9f, 0),
+		glm::vec3(0, 0.9f, 0),
+		glm::vec3(0, 0.9f, 0),
+		glm::vec3(0, 0.9f, 0),
+		glm::vec3(-0.05f, 0.9f, -0.05f),
+		glm::vec3(0.05f, 0.9f, -0.05f),
+		glm::vec3(-0.05f, 0.9f, 0.05f),
+		glm::vec3(0.05f, 0.9f, 0.05f),
+		glm::vec3(-0.1f, 0.9f, -0.01f),
+		glm::vec3(0.1f, 0.9f, -0.01f),
+		glm::vec3(-0.1f, 0.9f, 0.01f),
+		glm::vec3(0.1f, 0.9f, 0.01f),			
+
 	};
+
+	// std::vector<glm::vec3> lightSources {
+	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
+	// 	glm::vec3(0.8f, 0.9f, 0.8f)
+	// };
+
+	// std::vector<glm::vec3> lightSources {
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0),
+	// 	glm::vec3(0, 0.9f, 0)
+	// };
 
 	//flight corners
 
@@ -935,9 +972,9 @@ int main(int argc, char *argv[]) {
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_m){
 				std::cout << "m down - raytrace" << std::endl;
+				renderMode = RAYTRACE;
 				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
-				renderMode = RAYTRACE;
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
 				std::cout << "j down - proximity lighting toggle" << std::endl;
@@ -949,14 +986,27 @@ int main(int argc, char *argv[]) {
 				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
 				lightingMode[1] = abs(lightingMode[1]-1);
 			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
-				std::cout << "l down - specular lighting toggle" << std::endl;
-				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
-				lightingMode[2] = abs(lightingMode[2]-1);
-			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
 				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
+			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
+				std::cout<<"l down - switch lightsource"<<std::endl;
+				if (lightSources.size()>1){
+						lightSources =  {
+							glm::vec3(0, 0.9f, 0)};
+				} else{
+						lightSources =  {
+							glm::vec3(0, 0.9f, 0),
+							glm::vec3(0, 0.9f, 0),
+							glm::vec3(0, 0.9f, 0),
+							glm::vec3(0, 0.9f, 0)
+						};
+				}
+				render(triangles, window, indexToFile, lightSources,0);
+				window.renderFrame();
+				std::cout<<"light source switched"<<std::endl;
+
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
@@ -992,7 +1042,7 @@ int main(int argc, char *argv[]) {
 				// memset(DepthArray, 0, sizeof(DepthArray));
 
 
-				// //ratrace orbit
+				//ratrace orbit
 				// renderMode = RAYTRACE;
 				// for (int i=0; i<36; i++){
 				// 	window.clearPixels();
@@ -1000,7 +1050,7 @@ int main(int argc, char *argv[]) {
 				// 	lookAt(glm::vec3 (0,0,0));
 				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				// }
-				// window.clearPixels();
+				window.clearPixels();
 				USE_MIRROR = 1;
 				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
