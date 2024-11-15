@@ -19,8 +19,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*2
+#define HEIGHT 240*2
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -524,9 +524,7 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 		return intensity;
 }
 
-
-//dont work fantastically for MLS, investigate this :)
-float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
+float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, float extraMultiplier){
 	//commented out to allow sphere to only use angle of incidence
 	// if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
 	// 		return 0.2;
@@ -554,7 +552,7 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 		intensity += (intensityP*intensityA)+(intensityS*intensityA) + ambientIntensity;
 	}
 
-    float reducedIntensity = (intensity / intensityCompensator);
+    float reducedIntensity = extraMultiplier*(intensity / intensityCompensator);
 	
 	if (reducedIntensity <ambientIntensity) return ambientIntensity;
 	if (reducedIntensity>1) return 1;
@@ -563,7 +561,7 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 
 
 //works well, can prob be combined with genericShading now!
-float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
+float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, float extraMultiplier){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
@@ -583,7 +581,7 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 		}
 	}
 
-    float reducedIntensity = (intensity / lightSourceReduction);
+    float reducedIntensity = extraMultiplier*(intensity / lightSourceReduction);
 	
 	if (reducedIntensity <ambientIntensity) return ambientIntensity;
 	if (reducedIntensity>1) return 1;
@@ -593,7 +591,7 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
 	//redirects to generic shading for multiple light sources
 	if (lightSources.size()>1){
-		return genericShadingMLS(intersectionDetails, lightSources, triangles);
+		return genericShadingMLS(intersectionDetails, lightSources, triangles, 1); //final value is the lightsource multiplier. let this be controlled by main for the final sequence
 	}
 	glm::vec3 lightSource = lightSources[0];
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
@@ -689,7 +687,7 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 				
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
-				intensity = phong(intersectionDetails, lightSources, triangles);
+				intensity = phong(intersectionDetails, lightSources, triangles, 1);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
@@ -809,6 +807,22 @@ int render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::un
 	// std::cout<<"render completed"<<std::endl;
 }
 
+std::vector<glm::vec3> softShadowsLightSources (glm::vec3 lightSource, float radius, int n){
+    std::vector<glm::vec3> lightSources;
+
+    for (int i = 0; i < n; ++i) {
+		std::mt19937 generator(std::random_device{}());
+		std::normal_distribution<float> distribution(0, radius);
+		float xPos = distribution(generator);
+		float zPos = distribution(generator);
+		float yPos = distribution(generator);
+
+        lightSources.push_back(lightSource + glm::vec3(xPos, yPos, zPos));
+    }
+
+    return lightSources;
+}
+
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -853,6 +867,7 @@ int main(int argc, char *argv[]) {
 	//derive this from an equation, where the centre is very strong,
 	//and the strength drops off as it gets further away (but having fewer light sources there)
 	//see the final video from the section in github
+
 	// std::vector<glm::vec3> lightSources {
 	// 	glm::vec3(-0.025f, 0.9f, -0.025f),
 	// 	glm::vec3(0.025f, 0.9f, -0.025f),
@@ -874,15 +889,14 @@ int main(int argc, char *argv[]) {
 	// 	glm::vec3(0.1f, 0.9f, -0.01f),
 	// 	glm::vec3(-0.1f, 0.9f, 0.01f),
 	// 	glm::vec3(0.1f, 0.9f, 0.01f),			
-
 	// };
 
-	std::vector<glm::vec3> lightSources {
-		glm::vec3(-0.8f, 0.9f, -0.8f),
-		glm::vec3(0.8f, 0.9f, -0.8f),
-		glm::vec3(-0.8f, 0.9f, 0.8f),
-		glm::vec3(0.8f, 0.9f, 0.8f)
-	};
+	// std::vector<glm::vec3> lightSources {
+	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(0.8f, 0.9f, -0.8f),
+	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
+	// 	glm::vec3(0.8f, 0.9f, 0.8f)
+	// };
 
 	// std::vector<glm::vec3> lightSources {
 	// 	glm::vec3(0, 0.9f, 0),
@@ -890,6 +904,8 @@ int main(int argc, char *argv[]) {
 	// 	glm::vec3(0, 0.9f, 0),
 	// 	glm::vec3(0, 0.9f, 0)
 	// };
+
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 64);
 
 	//flight corners
 
