@@ -8,6 +8,7 @@
 #include <ModelTriangle.h>
 #include <RayTriangleIntersection.h>
 #include <iostream>
+#include <thread>
 #include <fstream>
 #include <random>
 #include <cmath>
@@ -19,8 +20,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*2
-#define HEIGHT 240*2
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -361,7 +362,6 @@ std::vector<CanvasPoint> removeDupilcateYs(std::vector<CanvasPoint> line) {
 	return result;
 }
 
-
 //to solve this depth issue thing, can consider doing it the other way round, where depth array is initiliased to int max
 //might my stupid and not work, just a thought
 bool checkPixelDepth (CanvasPoint pixel){
@@ -386,7 +386,7 @@ bool checkPixelDepth (CanvasPoint pixel){
 		return false;
 	}
 
-	if (1/pixel.depth > DepthArray[yInt][xInt] + 0.0001f){
+	if (1/pixel.depth > DepthArray[yInt][xInt] + 0.000001){
 		DepthArray[yInt][xInt] = 1/pixel.depth;
 		return true;
 	}
@@ -651,13 +651,13 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 	return Colour(r,g,b);
 }
 
-void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
-    int focalLength = 2;
-
+void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
+	
+	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
 
-    for (size_t y = 0; y < HEIGHT; y++) {
+    for (size_t y = startY; y < endY; y++) {
         for (size_t x = 0; x < WIDTH; x++) {
             float u = (x - WIDTH / 2.0f) / (WIDTH / focalLength);
             float v = -(y - HEIGHT / 2.0f) / (WIDTH / focalLength);
@@ -722,6 +722,31 @@ void drawRayTraced(std::vector<ModelTriangle> triangles, DrawingWindow &window, 
 			window.setPixelColour(x, y, convertColour(newColour));
         }
     }	
+}
+
+
+//intermediate chatGPT function to make hyperthreading work on raytracing
+//ensure that in makefile:
+//COMPILER_OPTIONS := -c -pthread -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
+//LINKER_OPTIONS := -pthread
+
+void drawRayTracedParallelise(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
+    const int numThreads = 20;  // Number of threads you want to use
+    int sectionHeight = HEIGHT / numThreads;
+
+    std::vector<std::thread> threads;
+
+    // Launch threads to render different sections of the screen
+    for (int i = 0; i < numThreads; i++) {
+        int startY = i * sectionHeight;
+        int endY = (i == numThreads - 1) ? HEIGHT : (i + 1) * sectionHeight;
+        threads.push_back(std::thread(drawRayTraced, startY, endY, std::ref(triangles), std::ref(window), std::ref(indexToFile), std::ref(lightSources)));
+    }
+
+    // Join all threads
+    for (auto& t : threads) {
+        t.join();
+    }
 }
 
 void draw3DTriangles(std::vector<ModelTriangle> triangles,  DrawingWindow &window){
@@ -795,7 +820,7 @@ int render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::un
 	} else if (renderMode==RASTERISE){
 		draw3DTriangles(triangles, window);
 	} else if (renderMode==RAYTRACE){
-		drawRayTraced(triangles, window, indexToFile, lightSources);
+		drawRayTracedParallelise(triangles, window, indexToFile, lightSources);
 	} else{
 		std::cout<<"render type unknown"<<std::endl;
 	}
@@ -841,19 +866,20 @@ int main(int argc, char *argv[]) {
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("/home/greg/Documents/CG2024/lab7_phongCompleted/assets/sphere.obj", colours, 0.35, glm::vec3(0.75,-0.2,-0.5));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.75,-0.2,-0.5));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
-	//blue box is indexes 22-31
+	std::cout<<triangles.size()<<std::endl;
 
+	//blue box is indexes 22-31
 
 	//hardcodes front of blue box to be a mirror
 	indexToFile[26] = "mirror";
@@ -867,51 +893,14 @@ int main(int argc, char *argv[]) {
 	cameraPosition = startingCamera;	
 	bool orbit = 0;
 
+	int frameNumber = 0;
+
+
 	//far corners
 	//bl, br, fl, fr
 	
-	//derive this from an equation, where the centre is very strong,
-	//and the strength drops off as it gets further away (but having fewer light sources there)
-	//see the final video from the section in github
 
-	// std::vector<glm::vec3> lightSources {
-	// 	glm::vec3(-0.025f, 0.9f, -0.025f),
-	// 	glm::vec3(0.025f, 0.9f, -0.025f),
-	// 	glm::vec3(-0.025f, 0.9f, 0.025f),
-	// 	glm::vec3(0.025f, 0.9f, 0.025f),
-	// 	glm::vec3(-0.025f, 0.9f, -0.025f),
-	// 	glm::vec3(0.025f, 0.9f, -0.025f),
-	// 	glm::vec3(-0.025f, 0.9f, 0.025f),
-	// 	glm::vec3(0.025f, 0.9f, 0.025f),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(-0.05f, 0.9f, -0.05f),
-	// 	glm::vec3(0.05f, 0.9f, -0.05f),
-	// 	glm::vec3(-0.05f, 0.9f, 0.05f),
-	// 	glm::vec3(0.05f, 0.9f, 0.05f),
-	// 	glm::vec3(-0.1f, 0.9f, -0.01f),
-	// 	glm::vec3(0.1f, 0.9f, -0.01f),
-	// 	glm::vec3(-0.1f, 0.9f, 0.01f),
-	// 	glm::vec3(0.1f, 0.9f, 0.01f),			
-	// };
-
-	// std::vector<glm::vec3> lightSources {
-	// 	glm::vec3(-0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(0.8f, 0.9f, -0.8f),
-	// 	glm::vec3(-0.8f, 0.9f, 0.8f),
-	// 	glm::vec3(0.8f, 0.9f, 0.8f)
-	// };
-
-	// std::vector<glm::vec3> lightSources {
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0),
-	// 	glm::vec3(0, 0.9f, 0)
-	// };
-
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 8);
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 2);
 
 	//flight corners
 
@@ -929,6 +918,8 @@ int main(int argc, char *argv[]) {
 		if (orbit==1){
 			rotateAboutOrigin(convertDegrees(1));
 			lookAt(glm::vec3 (0,0,0));	
+			frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+
 		}
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)){
@@ -969,14 +960,6 @@ int main(int argc, char *argv[]) {
 				std::cout << "look left" << std::endl;
 				pan(convertDegrees(-1.5));
 			}
-			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_g){
-			// 	std::cout << "rotate about origin" << std::endl;
-			// 	rotateAboutOrigin (convertDegrees(90));
-			// 	std::cout << "camera location" << cameraPosition[0] << "," 
-			// 	<< cameraPosition[1] << ","
-			// 	<< cameraPosition[2] <<
-			// 	std::endl;			
-			// }
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_p){
 				std::cout << "look at origin" << std::endl;
 				lookAt(glm::vec3 (0,0,0));
@@ -1031,8 +1014,6 @@ int main(int argc, char *argv[]) {
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_f){
 				std::cout << "f down, move up and then do a backflip" << std::endl;
-
-				int frameNumber = 0;
 
 				//move rectangle up
 				for (int i = 0; i < 5; i++){
@@ -1129,45 +1110,45 @@ int main(int argc, char *argv[]) {
 				int frameNumber=0;
 
 				// //wireframe orbit
-				// for (int i=0; i<36; i++){
-				// 	window.clearPixels();
-				// 	memset(DepthArray, 0, sizeof(DepthArray));
-				// 	rotateAboutOrigin(convertDegrees(10));
-				// 	lookAt(glm::vec3 (0,0,0));
-				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				// }
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 
 				// //rasterise orbit
-				// renderMode = RASTERISE;
-				// for (int i=0; i<36; i++){
-				// 	window.clearPixels();
-				// 	memset(DepthArray, 0, sizeof(DepthArray));
-				// 	rotateAboutOrigin(convertDegrees(10));
-				// 	lookAt(glm::vec3 (0,0,0));
-				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				// }
-				// memset(DepthArray, 0, sizeof(DepthArray));
+				renderMode = RASTERISE;
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+				memset(DepthArray, 0, sizeof(DepthArray));
 
 
 				//ratrace orbit
-				// renderMode = RAYTRACE;
-				// for (int i=0; i<36; i++){
-				// 	window.clearPixels();
-				// 	rotateAboutOrigin(convertDegrees(10));
-				// 	lookAt(glm::vec3 (0,0,0));
-				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				// }
+				renderMode = RAYTRACE;
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 				window.clearPixels();
 				USE_MIRROR = 1;
-				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-				// window.clearPixels();
+				window.clearPixels();
 				METALIC_MIRROR = 1;
-				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-				// window.clearPixels();
+				window.clearPixels();
 				USE_TEXTURED_FLOOR = 1;
-				// frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
 
