@@ -810,12 +810,18 @@ int render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::un
 std::vector<glm::vec3> softShadowsLightSources (glm::vec3 lightSource, float radius, int n){
     std::vector<glm::vec3> lightSources;
 
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; i++) {
 		std::mt19937 generator(std::random_device{}());
 		std::normal_distribution<float> distribution(0, radius);
 		float xPos = distribution(generator);
 		float zPos = distribution(generator);
 		float yPos = distribution(generator);
+
+		//gets rid of the possibility of extreme values
+		if (abs(xPos) > radius || abs(yPos) > radius || abs(zPos) > radius){
+			n++;
+			continue;
+		}
 
         lightSources.push_back(lightSource + glm::vec3(xPos, yPos, zPos));
     }
@@ -905,7 +911,7 @@ int main(int argc, char *argv[]) {
 	// 	glm::vec3(0, 0.9f, 0)
 	// };
 
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 64);
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 8);
 
 	//flight corners
 
