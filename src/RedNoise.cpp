@@ -662,8 +662,8 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 
 	if (dominantDirection == abs(rayDirection[0])){ //left or right
 		if (rayDirection[0]>0){
-			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f*(pixels_width-1));
-			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f*(pixels_height-1));
+			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width-1));
+			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height-1));
 			return (*right_pixels)[v * pixels_width + u];
 		} else{
 			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
@@ -701,7 +701,6 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-
 
 	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
