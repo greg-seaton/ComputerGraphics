@@ -563,12 +563,15 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 
 
 //works well, can prob be combined with genericShading now!
-float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, float extraMultiplier){
+float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, glm::vec3 VertexNormal, std::vector<ModelTriangle> triangles, float extraMultiplier){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
-	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 	float lightSourceReduction = lightSources.size();
 	float ambientIntensity = 0.2;
+
+	// if (intersectionDetails.triangleIndex!=12 || intersectionDetails.triangleIndex!=17){
+	// 	std::cout<<VertexNormal[0]<<","<<VertexNormal[1]<<","<<VertexNormal[2]<<std::endl;
+	// }
 
 	float intensity=0;
 	for (glm::vec3 lightSource:lightSources){
@@ -592,12 +595,17 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 
 float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, glm::vec3 VertexNormal){
 	//redirects to generic shading for multiple light sources
+
+
+	// if (intersectionDetails.triangleIndex!=12 || intersectionDetails.triangleIndex!=17){
+	// 	std::cout<<VertexNormal[0]<<","<<VertexNormal[1]<<","<<VertexNormal[2]<<std::endl;
+	// }
+
 	if (lightSources.size()>1){
-		return genericShadingMLS(intersectionDetails, lightSources, triangles, 1); //final value is the lightsource multiplier. let this be controlled by main for the final sequence
+		return genericShadingMLS(intersectionDetails, lightSources, VertexNormal, triangles, 1); //final value is the lightsource multiplier. let this be controlled by main for the final sequence
 	}
 	glm::vec3 lightSource = lightSources[0];
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
-	// glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 
 	float intensity;
@@ -696,8 +704,8 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 
 	if (dominantDirection == abs(rayDirection[0])){ //left or right
 		if (rayDirection[0]>0){
-			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width-1));
-			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height-1));
+			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*right_pixels)[v * pixels_width + u];
 		} else{
 			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
@@ -834,7 +842,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				continue;
 			}
 
-
 			Colour oldColour;
 			float intensity;
 			if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
@@ -849,12 +856,11 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
-				Colour vertexNormalAsColour = vertexNormalFinder(intersectionDetails, normalMap, normalMap_pixels);
+				Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap, normalMap_pixels);
 				glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 				vertexNormal = glm::normalize(vertexNormal);
-				
-				std::cout<<vertexNormal[0]<<","<<vertexNormal[1]<<","<<vertexNormal[2]<<std::endl;
-				intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
+				// std::cout<<vertexNormal[0]<<","<<vertexNormal[1]<<","<<vertexNormal[2]<<std::endl;
+				intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
 				if (USE_MIRROR == 1){
@@ -899,8 +905,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
         }
     }	
 }
-
-
 
 //intermediate chatGPT function to make multiple cores/threads work on raytracing
 //ensure that in makefile:
@@ -1103,8 +1107,12 @@ int main(int argc, char *argv[]) {
 	indexToFile[7] = "textured-floor";
 
 	//hardcodes the top of the red box to be normal map
-	indexToFile[12] = "normal-map";
-	indexToFile[17] = "normal-map";
+	// indexToFile[12] = "normal-map";
+	// indexToFile[17] = "normal-map";
+
+	//hardcodes left wall to be normal map
+	indexToFile[8] = "normal-map";
+	indexToFile[9] = "normal-map";
 
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
