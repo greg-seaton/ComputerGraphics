@@ -852,8 +852,8 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				Colour vertexNormalAsColour = vertexNormalFinder(intersectionDetails, normalMap, normalMap_pixels);
 				glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 				vertexNormal = glm::normalize(vertexNormal);
+				
 				std::cout<<vertexNormal[0]<<","<<vertexNormal[1]<<","<<vertexNormal[2]<<std::endl;
-
 				intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
