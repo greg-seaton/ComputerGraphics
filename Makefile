@@ -13,14 +13,14 @@ SDW_OBJECT_FILES := $(patsubst $(SDW_DIR)%.cpp, $(BUILD_DIR)/%.o, $(SDW_SOURCE_F
 
 # Build settings
 COMPILER := clang++
-COMPILER_OPTIONS := -c -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
+COMPILER_OPTIONS := -c -pthread -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
 # many warnings compiler options
 #COMPILER_OPTIONS := -c -pipe -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Woverflow -std=c++11
 DEBUG_OPTIONS := -ggdb -g3
 FUSSY_OPTIONS := -Werror -pedantic
 SANITIZER_OPTIONS := -O1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer
 SPEEDY_OPTIONS := -Ofast -funsafe-math-optimizations -march=native
-LINKER_OPTIONS :=
+LINKER_OPTIONS := -pthread
 
 # Set up flags
 SDW_COMPILER_FLAGS := -I$(SDW_DIR)
