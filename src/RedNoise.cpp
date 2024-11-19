@@ -829,6 +829,43 @@ std::vector<glm::vec3> softShadowsLightSources (glm::vec3 lightSource, float rad
     return lightSources;
 }
 
+void moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
+std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
+
+	cameraPosition = from;
+	cameraOrientation = startingOrientation;
+
+    for (int step = 0; step <= numberSteps; ++step) {
+		window.clearPixels();
+		memset(DepthArray, 0, sizeof(DepthArray));
+
+		float xDiff = to.x - from.x;
+		float yDiff = to.y - from.y;
+		float zDiff = to.z - from.z;
+
+		float xStepSize = xDiff/numberSteps;
+		float yStepSize = yDiff/numberSteps;
+		float zStepSize = zDiff/numberSteps;
+
+        float t = float(step) / float(numberSteps);
+        
+        glm::mat3 currentOrientation = glm::mat3(
+            glm::mix(startingOrientation[0], endingOrientation[0], t),
+            glm::mix(startingOrientation[1], endingOrientation[1], t),
+            glm::mix(startingOrientation[2], endingOrientation[2], t)
+        );
+
+        // Update the camera's orientation
+        cameraOrientation = currentOrientation;
+
+
+		cameraPosition= glm::vec3(cameraPosition[0]+ xStepSize, cameraPosition[1]+ yStepSize, cameraPosition[2]+ zStepSize);
+
+		
+		frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+    }
+}
+
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -1029,6 +1066,12 @@ int main(int argc, char *argv[]) {
 				std::cout<<"light source switched"<<std::endl;
 
 			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_h){
+				std::cout<<"h down moving smoothly"<<std::endl;
+				moveSmoothly(glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 0.0, 0), glm::mat3 ({1,0,0},{0,1,0},{0,0,1}), glm::mat3 ({0, 0, -1}, {0, 1, 0}, {1, 0, 0}), 20,
+				triangles, window, indexToFile, lightSources, 1); //these added so that rendering can be done within the functiuon
+			};
+
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_f){
 				std::cout << "f down, move up and then do a backflip" << std::endl;
 
