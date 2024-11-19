@@ -32,6 +32,7 @@ bool USE_MIRROR = 1;
 bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
+bool USE_NORMAL_MAP = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -652,6 +653,39 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 	return Colour(r,g,b);
 }
 
+Colour vertexNormalFinder(RayTriangleIntersection intersectionDetails, TextureMap texture, std::vector<uint32_t> pixels){
+	// if (USE_TEXTURED_FLOOR==0){ //do a vertex normal equivalent
+	// 	return intersectionDetails.intersectedTriangle.colour;
+	// }
+	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
+
+	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.vertices[0].x+
+				barycentrics[0]*intersectionDetails.intersectedTriangle.vertices[1].x+
+				barycentrics[2]*intersectionDetails.intersectedTriangle.vertices[2].x;
+
+	float v = barycentrics[1]*intersectionDetails.intersectedTriangle.vertices[0].y+
+				barycentrics[0]*intersectionDetails.intersectedTriangle.vertices[1].y+
+				barycentrics[2]*intersectionDetails.intersectedTriangle.vertices[2].y;
+
+	int textureXdistance = round(u*texture.width);
+	int textureYdistance = round(v*texture.height);
+	//grab pixel
+	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];
+	//convert to RGB format so it can be manipulated by intensity later
+	uint8_t r = (pixel >> 16) & 0xFF;
+	uint8_t g = (pixel >> 8) & 0xFF;
+	uint8_t b = pixel & 0xFF;
+
+	//prints values for the textured top
+	// if (intersectionDetails.triangleIndex!=6 && intersectionDetails.triangleIndex!=7){
+	// 	std::cout<<intersectionDetails.triangleIndex<<","<<Colour(r,g,b)<<std::endl;
+	// 	std::cout<<"intersection point: "<<intersectionDetails.intersectionPoint[0]<<","<<intersectionDetails.intersectionPoint[1]<<","<<intersectionDetails.intersectionPoint[2]<<std::endl;
+	// 	std::cout << "Texture X: " << textureXdistance << ", Y: " << textureYdistance << std::endl;
+	// 	std::cout << "u:" <<u<<"v: "<<v<<std::endl;
+	// }
+	return Colour(r,g,b);
+}
+
 uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* back_pixels, const std::vector<uint32_t>* bottom_pixels, 
     const std::vector<uint32_t>* front_pixels, const std::vector<uint32_t>* left_pixels, const std::vector<uint32_t>* right_pixels, const std::vector<uint32_t>* top_pixels
 	,size_t pixels_width, size_t pixels_height) {
@@ -700,11 +734,35 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 	}
 }
 
+glm::vec3 convertToNormalVector(Colour colour) {
+    // Normalize the RGB values to [0, 1]
+    float r = colour.red / 255.0f;
+    float g = colour.green / 255.0f;
+    float b = colour.blue / 255.0f;
+
+    // Map R and G to [-1, 1] for X and Y
+    float x = (r * 2.0f) - 1.0f;
+    float y = (g * 2.0f) - 1.0f;
+
+    // Z is directly normalized to [0, 1]
+    float z = b;
+
+    // Construct the normal vector
+    glm::vec3 normal(x, y, z);
+
+    // Normalize the vector to ensure it's a unit vector
+    return glm::normalize(normal);
+}
+
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
 
 	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
+
+	// for (int i=1000; i<2000; i++){
+	// 	std::cout<<pixels[i]<<std::endl;
+	// }
 
 	std::vector<uint32_t> back_pixels;
 	std::vector<uint32_t> bottom_pixels;
@@ -724,14 +782,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 		TextureMap rightTexture("./assets/skybox/right.ppm");
 		TextureMap topTexture("./assets/skybox/top.ppm");
 
-		// TextureMap backTexture =TextureMap("./assets/texture2.ppm");
-		// TextureMap bottomTexture =TextureMap("./assets/texture2.ppm");
-		// TextureMap frontTexture =TextureMap("./assets/texture2.ppm");
-		// TextureMap leftTexture =TextureMap("./assets/texture2.ppm");
-		// TextureMap rightTexture =TextureMap("./assets/texture2.ppm");
-		// TextureMap topTexture =TextureMap("./assets/texture2.ppm");
-
-
 		back_pixels = backTexture.pixels;
 		bottom_pixels = bottomTexture.pixels;
 		front_pixels = frontTexture.pixels;
@@ -739,10 +789,12 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 		right_pixels = rightTexture.pixels;
 		top_pixels = topTexture.pixels;
 
-		// Assuming all textures are the same size (if not, handle each separately)
 		pixels_width = backTexture.width;
 		pixels_height = backTexture.height;
 	}
+
+	TextureMap normalMap("./assets/normalMap1.ppm");
+	std::vector<uint32_t> normalMap_pixels = normalMap.pixels;
 
     for (size_t y = startY; y < endY; y++) {
         for (size_t x = 0; x < WIDTH; x++) {
@@ -797,9 +849,13 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
-				glm::vec3 vertexNormal;
-				intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal); //modify this to take a specific normal
-				oldColour = texture3D(intersectionDetails, texture, pixels);
+				Colour vertexNormalAsColour = vertexNormalFinder(intersectionDetails, normalMap, normalMap_pixels);
+				glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
+				vertexNormal = glm::normalize(vertexNormal);
+				std::cout<<vertexNormal[0]<<","<<vertexNormal[1]<<","<<vertexNormal[2]<<std::endl;
+
+				intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
+				oldColour = intersectionDetails.intersectedTriangle.colour;
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
 				if (USE_MIRROR == 1){
 					glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
@@ -815,7 +871,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 					} else{
 						oldColour = intersectionDetails.intersectedTriangle.colour;
 					}
-					if (intersectionDetails.distanceFromCamera==-1){ //not a triangle, skybox
+					if (intersectionDetails.distanceFromCamera==-1){ //not a triangle, so use skybox
 						if (USE_SKYBOX==1){
 							uint32_t skyboxColour = getSkyboxPixel(reflectedRay, &back_pixels, &bottom_pixels, &front_pixels, &left_pixels, &right_pixels, &top_pixels, pixels_width,pixels_height);
 							uint8_t r = (skyboxColour >> 16) & 0xFF;
@@ -1047,8 +1103,8 @@ int main(int argc, char *argv[]) {
 	indexToFile[7] = "textured-floor";
 
 	//hardcodes the top of the red box to be normal map
-	// indexToFile[12] = "normal-map";
-	// indexToFile[17] = "normal-map";
+	indexToFile[12] = "normal-map";
+	indexToFile[17] = "normal-map";
 
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
@@ -1062,7 +1118,7 @@ int main(int argc, char *argv[]) {
 	//bl, br, fl, fr
 	
 
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.9,0), 0.05, 2);
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.85,0), 0.05, 2);
 
 	//flight corners
 
