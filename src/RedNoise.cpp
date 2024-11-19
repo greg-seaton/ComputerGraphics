@@ -589,14 +589,14 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 	return reducedIntensity;
 }
 
-float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles){
+float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, glm::vec3 VertexNormal){
 	//redirects to generic shading for multiple light sources
 	if (lightSources.size()>1){
 		return genericShadingMLS(intersectionDetails, lightSources, triangles, 1); //final value is the lightsource multiplier. let this be controlled by main for the final sequence
 	}
 	glm::vec3 lightSource = lightSources[0];
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
-	glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
+	// glm::vec3 VertexNormal = intersectionDetails.intersectedTriangle.normal;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 
 	float intensity;
@@ -786,7 +786,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			Colour oldColour;
 			float intensity;
 			if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
-				intensity = genericShading(intersectionDetails, lightSources, triangles);
+				intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 				
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
@@ -794,9 +794,12 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				oldColour = intersectionDetails.intersectedTriangle.colour;
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
-				intensity = genericShading(intersectionDetails, lightSources, triangles);
+				intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 				oldColour = texture3D(intersectionDetails, texture, pixels);
-
+			} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
+				glm::vec3 vertexNormal;
+				intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal); //modify this to take a specific normal
+				oldColour = texture3D(intersectionDetails, texture, pixels);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
 				if (USE_MIRROR == 1){
 					glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
@@ -827,7 +830,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				if (intersectionDetails.distanceFromCamera==-1){ //keep skybox fully shaded in the mirror
 					intensity = 1;
 				}else{
-					intensity = genericShading(intersectionDetails, lightSources, triangles);
+					intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 				}
 
 			}else{
@@ -1042,6 +1045,11 @@ int main(int argc, char *argv[]) {
 	//hardcodes the floor to be textured
 	indexToFile[6] = "textured-floor";
 	indexToFile[7] = "textured-floor";
+
+	//hardcodes the top of the red box to be normal map
+	// indexToFile[12] = "normal-map";
+	// indexToFile[17] = "normal-map";
+
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
