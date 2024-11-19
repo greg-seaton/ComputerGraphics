@@ -660,46 +660,51 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 	int u=0;
 	int v=0;
 
-	if (dominantDirection == rayDirection[0]){ //left or right
+	if (dominantDirection == abs(rayDirection[0])){ //left or right
 		if (rayDirection[0]>0){
 			//scale these values probably
 			//further error being caused elsewhere
-			u = round(-rayDirection[2]/rayDirection[0])*pixels_width;
-			v = round(rayDirection[1]/rayDirection[0])*pixels_height;
+			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f)*(pixels_width-1);
+			v = round((rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f)*(pixels_height-1);
 			return (*right_pixels)[v * pixels_width + u];
 		} else{
-			u = round(rayDirection[2]/rayDirection[0])*pixels_width;
-			v = round(rayDirection[1]/rayDirection[0])*pixels_height;
+			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*left_pixels)[v * pixels_width + u];
 		}
-	} else if (dominantDirection == rayDirection[1]){ //top or bottom
+	} else if (dominantDirection == abs(rayDirection[1])){ //top or bottom
 		if (rayDirection[1]>0){
-			u = round(rayDirection[0]/rayDirection[1])*pixels_width;
-			v = round(-rayDirection[2]/rayDirection[1])*pixels_height;
+			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*top_pixels)[v * pixels_width + u];
 		} else{
-			u = round(rayDirection[0]/rayDirection[1])*pixels_width;
-			v = round(rayDirection[2]/rayDirection[1])*pixels_height;
+			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*top_pixels)[v * pixels_width + u];
 		}
-	}else if (dominantDirection == rayDirection[2]){ //front or back
+	}else if (dominantDirection == abs(rayDirection[2])){ //front or back
 		if (rayDirection[1]>0){
-			u = round(rayDirection[0]/rayDirection[2])*pixels_width;
-			v = round(rayDirection[1]/rayDirection[2])*pixels_height;
+			u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*top_pixels)[v * pixels_width + u];
 		} else{
-			u = round(-rayDirection[0]/rayDirection[2])*pixels_width;
-			v = round(rayDirection[1]/rayDirection[2])*pixels_height;
+			u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
 			return (*top_pixels)[v * pixels_width + u];
 		}
 	} else{
 		std::cout<<"fatal skybox error!"<<std::endl;
+		std::cout<<rayDirection[0]<<std::endl;
+		std::cout<<rayDirection[1]<<std::endl;
+		std::cout<<rayDirection[2]<<std::endl;
+		std::cout<<dominantDirection<<std::endl;
 		return 0;
 	}
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-	
+
+
 	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
@@ -714,14 +719,32 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 	size_t pixels_height;
 
 	if (USE_SKYBOX == 1){
-		back_pixels = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").pixels;
-		bottom_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
-		front_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
-		left_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
-		right_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
-		top_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
-		pixels_width = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").width;
-		pixels_height = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").height;
+
+		// TextureMap backTexture("./assets/skybox/back.ppm");
+		// TextureMap bottomTexture("./assets/skybox/bottom.ppm");
+		// TextureMap frontTexture("./assets/skybox/front.ppm");
+		// TextureMap leftTexture("./assets/skybox/left.ppm");
+		// TextureMap rightTexture("./assets/skybox/right.ppm");
+		// TextureMap topTexture("./assets/skybox/top.ppm");
+
+		TextureMap backTexture =TextureMap("./assets/texture2.ppm");
+		TextureMap bottomTexture =TextureMap("./assets/texture2.ppm");
+		TextureMap frontTexture =TextureMap("./assets/texture2.ppm");
+		TextureMap leftTexture =TextureMap("./assets/texture2.ppm");
+		TextureMap rightTexture =TextureMap("./assets/texture2.ppm");
+		TextureMap topTexture =TextureMap("./assets/texture2.ppm");
+
+
+		back_pixels = backTexture.pixels;
+		bottom_pixels = bottomTexture.pixels;
+		front_pixels = frontTexture.pixels;
+		left_pixels = leftTexture.pixels;
+		right_pixels = rightTexture.pixels;
+		top_pixels = topTexture.pixels;
+
+		// Assuming all textures are the same size (if not, handle each separately)
+		pixels_width = backTexture.width;
+		pixels_height = backTexture.height;
 	}
 
     for (size_t y = startY; y < endY; y++) {
@@ -737,7 +760,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			//does not intersect a triangle on the scene
             if (intersectionDetails.distanceFromCamera == -1) {
 				if (USE_SKYBOX==1){
-					uint32_t skyColor = getSkyboxPixel(rayDirection, 
+					uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
 													&back_pixels, 
 													&bottom_pixels, 
 													&front_pixels, 
@@ -746,11 +769,12 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 													&top_pixels,
 													pixels_width,
 													pixels_height);
-					window.setPixelColour(x, y, skyColor);
+					window.setPixelColour(x, y, skyboxColour);
 					continue;
 				}else{
 					continue;
 				} 
+			}
 			
 			//dont do shading on the outside of the box
 			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
@@ -785,10 +809,21 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 					glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 					glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 					intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
+
 					if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 						oldColour = texture3D(intersectionDetails, texture, pixels);
 					} else{
 						oldColour = intersectionDetails.intersectedTriangle.colour;
+					}
+					if (intersectionDetails.distanceFromCamera==-1){
+						if (USE_SKYBOX==1){
+							uint32_t skyboxColour = getSkyboxPixel(reflectedRay, &back_pixels, &bottom_pixels, &front_pixels, &left_pixels, &right_pixels, &top_pixels, pixels_width,pixels_height);
+							uint8_t r = (skyboxColour >> 16) & 0xFF;
+							uint8_t g = (skyboxColour >> 8) & 0xFF;
+							uint8_t b = skyboxColour & 0xFF;
+							oldColour = Colour(r,g,b);
+							//this is not perfect
+						}
 					}
 				} else{
 					oldColour = intersectionDetails.intersectedTriangle.colour;
@@ -805,7 +840,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
         }
     }	
 }
-}
+
 
 
 //intermediate chatGPT function to make hyperthreading work on raytracing
@@ -814,7 +849,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 //LINKER_OPTIONS := -pthread
 
 void drawRayTracedParallelise(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
-    const int numThreads = 20;  // Number of threads you want to use
+    const int numThreads = 4;  // Number of threads you want to use
     int sectionHeight = HEIGHT / numThreads;
 
     std::vector<std::thread> threads;
