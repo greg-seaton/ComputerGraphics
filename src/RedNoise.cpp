@@ -31,6 +31,7 @@ std::array<bool, 3> lightingMode = {0,0,0};
 bool USE_MIRROR = 1;
 bool METALIC_MIRROR = 1;
 bool USE_TEXTURED_FLOOR = 1;
+bool USE_SKYBOX = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -651,11 +652,77 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 	return Colour(r,g,b);
 }
 
+uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* back_pixels, const std::vector<uint32_t>* bottom_pixels, 
+    const std::vector<uint32_t>* front_pixels, const std::vector<uint32_t>* left_pixels, const std::vector<uint32_t>* right_pixels, const std::vector<uint32_t>* top_pixels
+	,size_t pixels_width, size_t pixels_height) {
+
+	float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
+	int u=0;
+	int v=0;
+
+	if (dominantDirection == rayDirection[0]){ //left or right
+		if (rayDirection[0]>0){
+			//scale these values probably
+			//further error being caused elsewhere
+			u = round(-rayDirection[2]/rayDirection[0])*pixels_width;
+			v = round(rayDirection[1]/rayDirection[0])*pixels_height;
+			return (*right_pixels)[v * pixels_width + u];
+		} else{
+			u = round(rayDirection[2]/rayDirection[0])*pixels_width;
+			v = round(rayDirection[1]/rayDirection[0])*pixels_height;
+			return (*left_pixels)[v * pixels_width + u];
+		}
+	} else if (dominantDirection == rayDirection[1]){ //top or bottom
+		if (rayDirection[1]>0){
+			u = round(rayDirection[0]/rayDirection[1])*pixels_width;
+			v = round(-rayDirection[2]/rayDirection[1])*pixels_height;
+			return (*top_pixels)[v * pixels_width + u];
+		} else{
+			u = round(rayDirection[0]/rayDirection[1])*pixels_width;
+			v = round(rayDirection[2]/rayDirection[1])*pixels_height;
+			return (*top_pixels)[v * pixels_width + u];
+		}
+	}else if (dominantDirection == rayDirection[2]){ //front or back
+		if (rayDirection[1]>0){
+			u = round(rayDirection[0]/rayDirection[2])*pixels_width;
+			v = round(rayDirection[1]/rayDirection[2])*pixels_height;
+			return (*top_pixels)[v * pixels_width + u];
+		} else{
+			u = round(-rayDirection[0]/rayDirection[2])*pixels_width;
+			v = round(rayDirection[1]/rayDirection[2])*pixels_height;
+			return (*top_pixels)[v * pixels_width + u];
+		}
+	} else{
+		std::cout<<"fatal skybox error!"<<std::endl;
+		return 0;
+	}
+}
+
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
 	
 	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
+
+	std::vector<uint32_t> back_pixels;
+	std::vector<uint32_t> bottom_pixels;
+	std::vector<uint32_t> front_pixels;
+	std::vector<uint32_t> left_pixels;
+	std::vector<uint32_t> right_pixels;
+	std::vector<uint32_t> top_pixels;
+	size_t pixels_width;
+	size_t pixels_height;
+
+	if (USE_SKYBOX == 1){
+		back_pixels = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").pixels;
+		bottom_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
+		front_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
+		left_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
+		right_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
+		top_pixels = TextureMap("./assets/skybox/back.ppm").pixels;
+		pixels_width = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").width;
+		pixels_height = TextureMap("./assgetSkyboxPixelets/skybox/back.ppm").height;
+	}
 
     for (size_t y = startY; y < endY; y++) {
         for (size_t x = 0; x < WIDTH; x++) {
@@ -667,8 +734,23 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 
             RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles, cameraPosition);
 
-			//occlusion check (skip if no intersection)
-            if (intersectionDetails.distanceFromCamera == -1) {continue;} 
+			//does not intersect a triangle on the scene
+            if (intersectionDetails.distanceFromCamera == -1) {
+				if (USE_SKYBOX==1){
+					uint32_t skyColor = getSkyboxPixel(rayDirection, 
+													&back_pixels, 
+													&bottom_pixels, 
+													&front_pixels, 
+													&left_pixels, 
+													&right_pixels, 
+													&top_pixels,
+													pixels_width,
+													pixels_height);
+					window.setPixelColour(x, y, skyColor);
+					continue;
+				}else{
+					continue;
+				} 
 			
 			//dont do shading on the outside of the box
 			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
@@ -722,6 +804,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			window.setPixelColour(x, y, convertColour(newColour));
         }
     }	
+}
 }
 
 
