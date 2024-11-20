@@ -808,6 +808,9 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			float intensity;
 			int redirectCount = 0; //number of time to let this loop run (ie, max number of times light should bounce)
 
+			if (intersectionDetails.distanceFromCamera == -1) {
+				redirectCount =5;
+			}
 			while (redirectCount < 5){
 
 				if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
@@ -862,7 +865,26 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			}
 
 			Colour newColour (oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
-			window.setPixelColour(x, y, convertColour(newColour));
+
+			//sort out skybox stuff
+			if (intersectionDetails.distanceFromCamera == -1) {
+				if (USE_SKYBOX==1){
+					uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
+														backTexture, 
+														bottomTexture, 
+														frontTexture, 
+														leftTexture, 
+														rightTexture, 
+														topTexture);
+					window.setPixelColour(x, y, skyboxColour);
+					continue;
+				}else{
+					continue;
+				} 
+			}
+			else{
+				window.setPixelColour(x, y, convertColour(newColour));
+			}
         }
     }	
 }
