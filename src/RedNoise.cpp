@@ -635,7 +635,7 @@ glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 	return normal;
 }
 
-Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture, std::vector<uint32_t> pixels){
+Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap* texture, std::vector<uint32_t>* pixels){
 	if (USE_TEXTURED_FLOOR==0){
 		return intersectionDetails.intersectedTriangle.colour;
 	}
@@ -649,10 +649,12 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap texture
 				barycentrics[0]*intersectionDetails.intersectedTriangle.texturePoints[1].y+
 				barycentrics[2]*intersectionDetails.intersectedTriangle.texturePoints[2].y;
 
-	int textureXdistance = round(u*texture.width);
-	int textureYdistance = round(v*texture.height);
+    int textureXdistance = static_cast<int>(u * texture->width);
+    int textureYdistance = static_cast<int>(v * texture->height);
+
+
 	//grab pixel
-	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];
+	uint32_t pixel = (*pixels)[textureYdistance * texture->width + textureXdistance];
 	//convert to RGB format so it can be manipulated by intensity later
 	uint8_t r = (pixel >> 16) & 0xFF;
 	uint8_t g = (pixel >> 8) & 0xFF;
@@ -788,7 +790,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 		pixels_height = backTexture.height;
 	}
 
-	TextureMap normalMap("./assets/normalMap1.ppm");
+	TextureMap normalMap("./assets/normalMap2.ppm");
 	std::vector<uint32_t> normalMap_pixels = normalMap.pixels;
 
     for (size_t y = startY; y < endY; y++) {
@@ -841,9 +843,9 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 				intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
-				oldColour = texture3D(intersectionDetails, texture, pixels);
+				oldColour = texture3D(intersectionDetails, &texture, &pixels);
 			} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
-				Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap, normalMap_pixels);
+				Colour vertexNormalAsColour = texture3D(intersectionDetails, &normalMap, &normalMap_pixels);
 				glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 				vertexNormal = glm::normalize(vertexNormal);
 				// std::cout<<vertexNormal[0]<<","<<vertexNormal[1]<<","<<vertexNormal[2]<<std::endl;
@@ -860,7 +862,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 					intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
 
 					if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
-						oldColour = texture3D(intersectionDetails, texture, pixels);
+						oldColour = texture3D(intersectionDetails, &texture, &pixels);
 					} else{
 						oldColour = intersectionDetails.intersectedTriangle.colour;
 					}
@@ -1113,7 +1115,7 @@ int main(int argc, char *argv[]) {
 	//bl, br, fl, fr
 	
 
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.85,0), 0.05, 2);
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
 
 	//flight corners
 
