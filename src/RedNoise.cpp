@@ -755,6 +755,8 @@ glm::vec3 convertToNormalVector(Colour colour) {
     return glm::normalize(normal);
 }
 
+
+//rewrite this function
 glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
     float cosi = glm::dot(incidentRay, normal);
     float eta = 1.0f / refractiveIndex;  // Assuming air's refractive index is 1.0
@@ -777,6 +779,7 @@ glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, floa
     return glm::normalize(refractedRay);
 }
 
+////rewrite this function
 float fresnel(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
     float cosi = glm::dot(incidentRay, normal);
     float eta = refractiveIndex;
@@ -806,7 +809,6 @@ Colour uint32ToColour(uint32_t color) {
     
     return Colour(r, g, b);
 }
-
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
     TextureMap* texture = new TextureMap("./assets/texture2.ppm"); // width: 480, height: 395
