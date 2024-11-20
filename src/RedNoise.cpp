@@ -777,22 +777,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 
             RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles, cameraPosition);
 
-			//does not intersect a triangle on the scene
-            if (intersectionDetails.distanceFromCamera == -1) {
-				if (USE_SKYBOX==1){
-					uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
-														backTexture, 
-														bottomTexture, 
-														frontTexture, 
-														leftTexture, 
-														rightTexture, 
-														topTexture);
-					window.setPixelColour(x, y, skyboxColour);
-					continue;
-				}else{
-					continue;
-				} 
-			}
+
 			
 			//dont do shading on the outside of the box
 			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
@@ -809,6 +794,21 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			int redirectCount = 0; //number of time to let this loop run (ie, max number of times light should bounce)
 
 			while (redirectCount < 5){
+				if (intersectionDetails.distanceFromCamera == -1) {
+					if (USE_SKYBOX==1){
+						uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
+															backTexture, 
+															bottomTexture, 
+															frontTexture, 
+															leftTexture, 
+															rightTexture, 
+															topTexture);
+						window.setPixelColour(x, y, skyboxColour);
+						continue;
+					}else{
+						continue;
+					} 
+				}
 
 				if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
 					intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
