@@ -755,7 +755,8 @@ glm::vec3 convertToNormalVector(Colour colour) {
     return glm::normalize(normal);
 }
 
-std::set<TextureMap*> loadTextures() {
+
+void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
     TextureMap* texture = new TextureMap("./assets/texture2.ppm"); // width: 480, height: 395
     TextureMap* backTexture = new TextureMap("./assets/skybox/back.ppm");
     TextureMap* bottomTexture = new TextureMap("./assets/skybox/bottom.ppm");
@@ -764,34 +765,6 @@ std::set<TextureMap*> loadTextures() {
     TextureMap* rightTexture = new TextureMap("./assets/skybox/right.ppm");
     TextureMap* topTexture = new TextureMap("./assets/skybox/top.ppm");
     TextureMap* normalMap = new TextureMap("./assets/normalMap2.ppm");
-
-    std::set<TextureMap*> textureMaps;
-    textureMaps.insert(texture);
-    textureMaps.insert(backTexture);
-    textureMaps.insert(bottomTexture);
-    textureMaps.insert(frontTexture);
-    textureMaps.insert(leftTexture);
-    textureMaps.insert(rightTexture);
-    textureMaps.insert(topTexture);
-    textureMaps.insert(normalMap);
-
-    return textureMaps;
-}
-
-void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-
-	std::set<TextureMap*> textureMaps = loadTextures();
-
-	auto it = textureMaps.begin();
-	TextureMap* texture = *it++;
-	TextureMap* backTexture = *it++;
-	TextureMap* bottomTexture = *it++;
-	TextureMap* frontTexture = *it++;
-	TextureMap* leftTexture = *it++;
-	TextureMap* rightTexture = *it++;
-	TextureMap* topTexture = *it++;
-	TextureMap* normalMap = *it++;
-
 
 	int focalLength = 2;
     for (size_t y = startY; y < endY; y++) {
@@ -833,7 +806,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			//sending rays to triangles, make this recursive
 			Colour oldColour;
 			float intensity;
-			int redirectCount = 0;
+			int redirectCount = 0; //number of time to let this loop run (ie, max number of times light should bounce)
 
 			while (redirectCount < 5){
 
@@ -851,7 +824,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 					intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 					oldColour = texture3D(intersectionDetails, texture);
 					redirectCount=5;
-
 
 				} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
 					Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap);
