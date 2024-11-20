@@ -743,22 +743,13 @@ uint32_t getSkyboxPixel(glm::vec3 rayDirection, const std::vector<uint32_t>* bac
 }
 
 glm::vec3 convertToNormalVector(Colour colour) {
-    // Normalize the RGB values to [0, 1]
-    float r = colour.red / 255.0f;
-    float g = colour.green / 255.0f;
-    float b = colour.blue / 255.0f;
+    //scale r and g to [-1,1], scale b to [0,1]
+    float r = ((colour.red / 255.0)*2)-1;
+    float g = ((colour.green / 255.0)*2)-1;
+    float b = colour.blue / 255.0;
 
-    // Map R and G to [-1, 1] for X and Y
-    float x = (r * 2.0f) - 1.0f;
-    float y = (g * 2.0f) - 1.0f;
-
-    // Z is directly normalized to [0, 1]
-    float z = b;
-
-    // Construct the normal vector
-    glm::vec3 normal(x, y, z);
-
-    // Normalize the vector to ensure it's a unit vector
+	//assemble and return
+    glm::vec3 normal(r, g, b);
     return glm::normalize(normal);
 }
 
@@ -767,10 +758,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 	int focalLength = 2;
 	TextureMap texture = TextureMap("./assets/texture2.ppm"); //width: 480, height: 395
 	std::vector<uint32_t> pixels = texture.pixels;
-
-	// for (int i=1000; i<2000; i++){
-	// 	std::cout<<pixels[i]<<std::endl;
-	// }
 
 	std::vector<uint32_t> back_pixels;
 	std::vector<uint32_t> bottom_pixels;
