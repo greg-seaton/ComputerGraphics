@@ -872,6 +872,9 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 					glass_hit=1;
 					glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
 					reflectionCoefficient = fresnel(rayDirection, normal, 1.5);
+					//mess around with this, dont want it to simply be a mirror when looking straight on
+					//sort out the positioning and shape of the glass as well
+
 					rayDirection = glm::normalize(refractRay(rayDirection, normal, 1.5));
 					intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 					intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
