@@ -776,23 +776,6 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
             glm::vec3 rayDirection = glm::normalize(pixelInCam * cameraOrientation);
 
             RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles, cameraPosition);
-
-			//does not intersect a triangle on the scene
-            if (intersectionDetails.distanceFromCamera == -1) {
-				if (USE_SKYBOX==1){
-					uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
-														backTexture, 
-														bottomTexture, 
-														frontTexture, 
-														leftTexture, 
-														rightTexture, 
-														topTexture);
-					window.setPixelColour(x, y, skyboxColour);
-					continue;
-				}else{
-					continue;
-				} 
-			}
 			
 			//dont do shading on the outside of the box
 			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
@@ -869,13 +852,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			//sort out skybox stuff
 			if (intersectionDetails.distanceFromCamera == -1) {
 				if (USE_SKYBOX==1){
-					uint32_t skyboxColour = getSkyboxPixel(rayDirection, 
-														backTexture, 
-														bottomTexture, 
-														frontTexture, 
-														leftTexture, 
-														rightTexture, 
-														topTexture);
+					uint32_t skyboxColour = getSkyboxPixel(rayDirection, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
 					window.setPixelColour(x, y, skyboxColour);
 					continue;
 				}else{
