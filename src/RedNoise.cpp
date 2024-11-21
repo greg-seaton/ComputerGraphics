@@ -206,7 +206,7 @@ std::vector<ModelTriangle> OBJparser (std::string fileLocation, std::tuple<std::
 }
 
 //this is intended to work from the camera
-RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vector<ModelTriangle> triangles, glm::vec3 r){
+RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vector<ModelTriangle> &triangles, glm::vec3 r){
 	//r is ray source, should not be hard coded to camera position
 	// glm::vec3 r = cameraPosition;
 	float minT = FLT_MAX;
@@ -248,7 +248,7 @@ RayTriangleIntersection getClosestIntersection (glm::vec3 rayDirection, std::vec
 	return intersectionDetails;
 }
 
-bool findIntersectionBetweenTwoPoints(glm::vec3 source, glm::vec3 destination, std::vector<ModelTriangle> triangles) {
+bool findIntersectionBetweenTwoPoints(glm::vec3 source, glm::vec3 destination, std::vector<ModelTriangle> &triangles) {
     glm::vec3 rayDirection = glm::normalize(destination - source);
     float rayDistance = glm::length(destination - source);
     bool intersectionFound = false;
@@ -491,7 +491,7 @@ std::vector<float> computeBarycentricPoints(glm::vec3 p, ModelTriangle triangle)
     return result;
 }
 
-float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, std::vector<ModelTriangle> triangles){
+float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, std::vector<ModelTriangle> &triangles){
 		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
 			return 0.2;
 		}
@@ -526,7 +526,7 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 		return intensity;
 }
 
-float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, float extraMultiplier){
+float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> &triangles, float extraMultiplier){
 	//commented out to allow sphere to only use angle of incidence
 	// if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
 	// 		return 0.2;
@@ -563,7 +563,7 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 
 
 //works well, can prob be combined with genericShading now!
-float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, glm::vec3 VertexNormal, std::vector<ModelTriangle> triangles, float extraMultiplier){
+float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, glm::vec3 VertexNormal, std::vector<ModelTriangle> &triangles, float extraMultiplier){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 	float lightSourceReduction = lightSources.size();
@@ -593,7 +593,7 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 	return reducedIntensity;
 }
 
-float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> triangles, glm::vec3 VertexNormal){
+float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> &triangles, glm::vec3 VertexNormal){
 	//redirects to generic shading for multiple light sources
 
 
@@ -635,7 +635,7 @@ glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 	return normal;
 }
 
-Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap* texture){
+Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &texture){
 	if (USE_TEXTURED_FLOOR==0){
 		return intersectionDetails.intersectedTriangle.colour;
 	}
@@ -649,12 +649,12 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap* textur
 				barycentrics[0]*intersectionDetails.intersectedTriangle.texturePoints[1].y+
 				barycentrics[2]*intersectionDetails.intersectedTriangle.texturePoints[2].y;
 
-    int textureXdistance = static_cast<int>(u * texture->width);
-    int textureYdistance = static_cast<int>(v * texture->height);
+    int textureXdistance = static_cast<int>(u * texture.width);
+    int textureYdistance = static_cast<int>(v * texture.height);
 
 
 	//grab pixel
-	uint32_t pixel = texture->pixels[textureYdistance * texture->width + textureXdistance];	//convert to RGB format so it can be manipulated by intensity later
+	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];	//convert to RGB format so it can be manipulated by intensity later
 	uint8_t r = (pixel >> 16) & 0xFF;
 	uint8_t g = (pixel >> 8) & 0xFF;
 	uint8_t b = pixel & 0xFF;
@@ -695,44 +695,44 @@ Colour vertexNormalFinder(RayTriangleIntersection intersectionDetails, TextureMa
 	return Colour(r,g,b);
 }
 
-uint32_t getSkyboxPixel(glm::vec3 rayDirection, TextureMap* backTexture, TextureMap* bottomTexture, TextureMap* frontTexture, TextureMap* leftTexture, TextureMap* rightTexture, TextureMap* topTexture){
+uint32_t getSkyboxPixel(glm::vec3 rayDirection, TextureMap &backTexture, TextureMap &bottomTexture, TextureMap &frontTexture, TextureMap &leftTexture, TextureMap &rightTexture, TextureMap &topTexture){
 
 	float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
 	int u=0;
 	int v=0;
 
-    int pixels_width = backTexture->width;
-    int pixels_height = backTexture->height;
+    int pixels_width = backTexture.width;
+    int pixels_height = backTexture.height;
 
 	if (dominantDirection == abs(rayDirection[0])){ //left or right
 		if (rayDirection[0]>0){
 			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return rightTexture->pixels[v * pixels_width + u];
+            return rightTexture.pixels[v * pixels_width + u];
 		} else{
 			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return leftTexture->pixels[v * pixels_width + u];
+            return leftTexture.pixels[v * pixels_width + u];
 		}
 	} else if (dominantDirection == abs(rayDirection[1])){ //top or bottom
 		if (rayDirection[1]>0){ //top
 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return topTexture->pixels[v * pixels_width + u];
+            return topTexture.pixels[v * pixels_width + u];
 		} else{ //bottom
 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return bottomTexture->pixels[v * pixels_width + u];
+            return bottomTexture.pixels[v * pixels_width + u];
 		}
 	}else if (dominantDirection == abs(rayDirection[2])){ //front or back
 		if (rayDirection[2]>0){
 			u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return frontTexture->pixels[v * pixels_width + u];
+            return frontTexture.pixels[v * pixels_width + u];
 		} else{
 			u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return backTexture->pixels[v * pixels_width + u];
+            return backTexture.pixels[v * pixels_width + u];
 		}
 	} else{
 		std::cout<<"fatal skybox error!"<<std::endl;
@@ -779,7 +779,6 @@ glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, floa
     return glm::normalize(refractedRay);
 }
 
-////rewrite this function
 float fresnel(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
     float cosi = glm::dot(incidentRay, normal);
     float eta = refractiveIndex;
@@ -811,14 +810,16 @@ Colour uint32ToColour(uint32_t color) {
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-    TextureMap* texture = new TextureMap("./assets/texture2.ppm"); // width: 480, height: 395
-    TextureMap* backTexture = new TextureMap("./assets/skybox/back.ppm");
-    TextureMap* bottomTexture = new TextureMap("./assets/skybox/bottom.ppm");
-    TextureMap* frontTexture = new TextureMap("./assets/skybox/front.ppm");
-    TextureMap* leftTexture = new TextureMap("./assets/skybox/left.ppm");
-    TextureMap* rightTexture = new TextureMap("./assets/skybox/right.ppm");
-    TextureMap* topTexture = new TextureMap("./assets/skybox/top.ppm");
-    TextureMap* normalMap = new TextureMap("./assets/normalMap2.ppm");
+    TextureMap texture("./assets/texture2.ppm"); // width: 480, height: 395
+    TextureMap backTexture("./assets/skybox/back.ppm");
+    TextureMap bottomTexture("./assets/skybox/bottom.ppm");
+    TextureMap frontTexture("./assets/skybox/front.ppm");
+    TextureMap leftTexture("./assets/skybox/left.ppm");
+    TextureMap rightTexture("./assets/skybox/right.ppm");
+    TextureMap topTexture("./assets/skybox/top.ppm");
+    TextureMap normalMap("./assets/normalMap2.ppm");
+
+	std::cout<<"skybox loaded"<<std::endl;
 
 	int focalLength = 2;
     for (size_t y = startY; y < endY; y++) {
@@ -923,10 +924,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			if (glass_hit==1){
 				Colour reflected = uint32ToColour(getSkyboxPixel(reflectedRay, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture));
 				Colour refracted = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
-				// reflectionCoefficient=0.5;
-				std::cout<<"reflected "<<reflected<<std::endl;
-				std::cout<<"refracted "<<refracted<<std::endl;
-				std::cout<<"coefficient "<<reflectionCoefficient<<std::endl;
+				reflectionCoefficient=0.5;
 
 				newColour = Colour(
 					(reflected.red * reflectionCoefficient) + (refracted.red * (1.0f - reflectionCoefficient)),
@@ -959,7 +957,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 //ensure that in makefile:
 //COMPILER_OPTIONS := -c -pthread -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
 //LINKER_OPTIONS := -pthread
-void drawRayTracedParallelise(std::vector<ModelTriangle> triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
+void drawRayTracedParallelise(std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
     const int numThreads = 4;  // Number of threads you want to use
     int sectionHeight = HEIGHT / numThreads;
 
@@ -978,7 +976,7 @@ void drawRayTracedParallelise(std::vector<ModelTriangle> triangles, DrawingWindo
     }
 }
 
-void draw3DTriangles(std::vector<ModelTriangle> triangles,  DrawingWindow &window){
+void draw3DTriangles(std::vector<ModelTriangle> &triangles,  DrawingWindow &window){
 	for (ModelTriangle triangle:triangles){
 		float focalLength = 2;
 		CanvasPoint v0 = projectVertexOntoCanvasPoint(cameraPosition, focalLength, triangle.vertices[0]);
@@ -994,7 +992,7 @@ void draw3DTriangles(std::vector<ModelTriangle> triangles,  DrawingWindow &windo
 	}
 }
 
-void drawWireframe(std::vector<ModelTriangle> triangles,  DrawingWindow &window){
+void drawWireframe(std::vector<ModelTriangle> &triangles,  DrawingWindow &window){
 	for (ModelTriangle triangle:triangles){
 		float focalLength = 2;
 		CanvasPoint v0 = projectVertexOntoCanvasPoint(cameraPosition, focalLength, triangle.vertices[0]);
@@ -1043,7 +1041,7 @@ float convertDegrees(float degrees) {
     return degrees * (pi / 180);
 }
 
-int render(std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber){
+int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber){
 	if (renderMode==WIREFRAME){
 		drawWireframe(triangles,window);
 	} else if (renderMode==RASTERISE){
@@ -1084,7 +1082,7 @@ std::vector<glm::vec3> softShadowsLightSources (glm::vec3 lightSource, float rad
 }
 
 void moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
-std::vector<ModelTriangle> triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
+std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
 
 	cameraPosition = from;
 	cameraOrientation = startingOrientation;
