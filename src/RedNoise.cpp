@@ -33,7 +33,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 0;
+bool GDB_FILES = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -696,54 +696,124 @@ Colour vertexNormalFinder(RayTriangleIntersection intersectionDetails, TextureMa
 	return Colour(r,g,b);
 }
 
-uint32_t getSkyboxPixel(glm::vec3 rayDirection, TextureMap &backTexture, TextureMap &bottomTexture, TextureMap &frontTexture, TextureMap &leftTexture, TextureMap &rightTexture, TextureMap &topTexture){
+// uint32_t getSkyboxPixel(glm::vec3 rayDirection, TextureMap &backTexture, TextureMap &bottomTexture, TextureMap &frontTexture, TextureMap &leftTexture, TextureMap &rightTexture, TextureMap &topTexture){
 
-	float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
-	int u=0;
-	int v=0;
+// 	float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
+// 	int u=0;
+// 	int v=0;
 
-    int pixels_width = backTexture.width;
-    int pixels_height = backTexture.height;
+//     int pixels_width = backTexture.width;
+//     int pixels_height = backTexture.height;
 
-	if (dominantDirection == abs(rayDirection[0])){ //left or right
-		if (rayDirection[0]>0){
-			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return rightTexture.pixels[v * pixels_width + u];
-		} else{
-			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return leftTexture.pixels[v * pixels_width + u];
-		}
-	} else if (dominantDirection == abs(rayDirection[1])){ //top or bottom
-		if (rayDirection[1]>0){ //top
-			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return topTexture.pixels[v * pixels_width + u];
-		} else{ //bottom
-			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return bottomTexture.pixels[v * pixels_width + u];
-		}
-	}else if (dominantDirection == abs(rayDirection[2])){ //front or back
-		if (rayDirection[2]>0){
-			u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return frontTexture.pixels[v * pixels_width + u];
-		} else{
-			u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
-			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-            return backTexture.pixels[v * pixels_width + u];
-		}
-	} else{
-		std::cout<<"fatal skybox error!"<<std::endl;
-		std::cout<<rayDirection[0]<<std::endl;
-		std::cout<<rayDirection[1]<<std::endl;
-		std::cout<<rayDirection[2]<<std::endl;
-		std::cout<<dominantDirection<<std::endl;
-		return 0;
-	}
-}
+// 	if (dominantDirection == abs(rayDirection[0])){ //left or right
+// 		if (rayDirection[0]>0){
+// 			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return rightTexture.pixels[v * pixels_width + u];
+// 		} else{
+// 			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return leftTexture.pixels[v * pixels_width + u];
+// 		}
+// 	} else if (dominantDirection == abs(rayDirection[1])){ //top or bottom
+// 		if (rayDirection[1]>0){ //top
+// 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return topTexture.pixels[v * pixels_width + u];
+// 		} else{ //bottom
+// 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return bottomTexture.pixels[v * pixels_width + u];
+// 		}
+// 	}else if (dominantDirection == abs(rayDirection[2])){ //front or back
+// 		if (rayDirection[2]>0){
+// 			u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return frontTexture.pixels[v * pixels_width + u];
+// 		} else{
+// 			u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+// 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
+//             return backTexture.pixels[v * pixels_width + u];
+// 		}
+// 	} else{
+// 		std::cout<<"fatal skybox error!"<<std::endl;
+// 		std::cout<<rayDirection[0]<<std::endl;
+// 		std::cout<<rayDirection[1]<<std::endl;
+// 		std::cout<<rayDirection[2]<<std::endl;
+// 		std::cout<<dominantDirection<<std::endl;
+// 		return 0;
+// 	}
+// }
+
+class Skybox {
+public:
+    // Constructor that takes TextureMap objects as arguments
+    Skybox(TextureMap& texture, TextureMap& backTexture, TextureMap& bottomTexture,
+           TextureMap& frontTexture, TextureMap& leftTexture, TextureMap& rightTexture, 
+           TextureMap& topTexture, TextureMap& normalMap)
+        : texture(texture), backTexture(backTexture), bottomTexture(bottomTexture),
+          frontTexture(frontTexture), leftTexture(leftTexture), rightTexture(rightTexture), 
+          topTexture(topTexture), normalMap(normalMap) {}
+
+    // Function to get the pixel from the skybox
+    uint32_t getSkyboxPixel(glm::vec3 rayDirection) {
+        float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
+        int u = 0;
+        int v = 0;
+
+        int pixels_width = backTexture.width;
+        int pixels_height = backTexture.height;
+
+        if (dominantDirection == abs(rayDirection[0])) { //left or right
+            if (rayDirection[0] > 0) {
+                u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return rightTexture.pixels[v * pixels_width + u];
+            } else {
+                u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return leftTexture.pixels[v * pixels_width + u];
+            }
+        } else if (dominantDirection == abs(rayDirection[1])) { //top or bottom
+            if (rayDirection[1] > 0) { //top
+                u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return topTexture.pixels[v * pixels_width + u];
+            } else { //bottom
+                u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return bottomTexture.pixels[v * pixels_width + u];
+            }
+        } else if (dominantDirection == abs(rayDirection[2])) { //front or back
+            if (rayDirection[2] > 0) {
+                u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return frontTexture.pixels[v * pixels_width + u];
+            } else {
+                u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
+                v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
+                return backTexture.pixels[v * pixels_width + u];
+            }
+        } else {
+            std::cout << "fatal skybox error!" << std::endl;
+            std::cout << rayDirection[0] << std::endl;
+            std::cout << rayDirection[1] << std::endl;
+            std::cout << rayDirection[2] << std::endl;
+            std::cout << dominantDirection << std::endl;
+            return 0;
+        }
+    }
+
+private:
+    TextureMap texture;
+    TextureMap backTexture;
+    TextureMap bottomTexture;
+    TextureMap frontTexture;
+    TextureMap leftTexture;
+    TextureMap rightTexture;
+    TextureMap topTexture;
+    TextureMap normalMap;
+};
 
 glm::vec3 convertToNormalVector(Colour colour) {
     //scale r and g to [-1,1], scale b to [0,1]
@@ -757,7 +827,6 @@ glm::vec3 convertToNormalVector(Colour colour) {
 }
 
 
-//rewrite this function
 glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
     float cosi = glm::dot(incidentRay, normal);
     float eta = 1.0f / refractiveIndex;  // Assuming air's refractive index is 1.0
@@ -817,21 +886,22 @@ Colour combineColours(float weight, const Colour &colour1, const Colour &colour2
     return Colour(red, green, blue);
 }
 
-std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount){
+std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount, Skybox &skybox){
+
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
 	int maxRedirects = 20;
 	redirectCount=redirectCount+1;
 
-	if (redirectCount>maxRedirects){
-		intensity = 1;
-		oldColour = Colour(255,255,255);
-		return {intensity, oldColour, rayDirection};
+	if (redirectCount>maxRedirects){ //ray direction could be wrong?
+		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection); //segfalt being caused here
+		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
 	}
 
+	//need to properly implement skybox inside this function
 	if (intersectionDetails.distanceFromCamera==-1){
-		oldColour = Colour(255,255,255);
-		return {123, oldColour, rayDirection};
+		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);//segfalt being caused here
+		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
 	}
 
 	if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
@@ -851,7 +921,7 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 
 	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
 		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
-		float reflectionCoefficient = fresnel(rayDirection, normal, 1.5);
+		float reflectionCoefficient = glm::clamp(fresnel(rayDirection, normal, 1.5), 0.0f, 1.0f);
 
 		glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
 
@@ -859,10 +929,12 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 
 		intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
-		std::tuple<float, Colour, glm::vec3> refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+		std::tuple<float, Colour, glm::vec3> refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
 
 		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-		std::tuple<float, Colour, glm::vec3> reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+		std::tuple<float, Colour, glm::vec3> reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
+		//magic number jank?
+
 
 		float intensity1 = std::get<0>(refrPair);
 		Colour oldColour1 = std::get<1>(refrPair);
@@ -870,7 +942,16 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		float intensity2 = std::get<0>(reflPair);
 		Colour oldColour2 = std::get<1>(reflPair);
 
+		if (intensity1 > 1){
+			std::cout<<"magic number "<<intensity1<<std::endl;
+		}
+		if (intensity2 > 1){
+			std::cout<<"magic number "<<intensity2<<std::endl;
+		}
+
+		//something going wrong in these last few lines here
 		intensity = reflectionCoefficient * intensity2 + (1.0f - reflectionCoefficient) * intensity1;
+		intensity =1;
 		oldColour = combineColours(reflectionCoefficient, oldColour1, oldColour2);
 
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
@@ -889,7 +970,7 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount,skybox);
 
 
 		intensity = std::get<0>(bounced);
@@ -901,7 +982,7 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		intensity = 0;
 		std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
 	}
-	return {intensity, oldColour, rayDirection};
+	return {intensity, oldColour, glm::normalize(rayDirection)};
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
@@ -913,7 +994,12 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 	TextureMap rightTexture = GDB_FILES ? TextureMap("../assets/skybox/right.ppm") : TextureMap("./assets/skybox/right.ppm");
 	TextureMap topTexture = GDB_FILES ? TextureMap("../assets/skybox/top.ppm") : TextureMap("./assets/skybox/top.ppm");
 	TextureMap normalMap = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
+
+	//initilise skybox object
+	Skybox skybox(texture, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture, normalMap);
+
 	std::cout<<"skybox loaded"<<std::endl;
+
 
 	int focalLength = 2;
     for (size_t y = startY; y < endY; y++) {
@@ -936,24 +1022,19 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			}
 
 			if (intersectionDetails.distanceFromCamera != -1) {
-				std::tuple<float, Colour, glm::vec3> result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0);
+				std::tuple<float, Colour, glm::vec3> result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0, skybox);
 
 				float intensity = std::get<0>(result);
 				Colour oldColour = std::get<1>(result);
 				glm::vec3 newRay = std::get<2>(result);
 
-				if (intensity==123){ //this means it colided with the skybox
-					//needs skybox
-					uint32_t skyboxColour = getSkyboxPixel(newRay, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
-					window.setPixelColour(x, y, skyboxColour);
-				} else{
-					Colour newColour;
-					newColour = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
+				Colour newColour;
+				newColour = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
 
-					window.setPixelColour(x, y, convertColour(newColour));
-				}
+				window.setPixelColour(x, y, convertColour(newColour));
+
 			} else{ //skybox time
-				uint32_t skyboxColour = getSkyboxPixel(rayDirection, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
+				uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);
 				window.setPixelColour(x, y, skyboxColour);
 			}
         }
@@ -1130,18 +1211,18 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
 
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
