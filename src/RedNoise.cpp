@@ -820,7 +820,7 @@ Colour combineColours(float weight, const Colour &colour1, const Colour &colour2
 std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount){
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
-	int maxRedirects = 10;
+	int maxRedirects = 20;
 	redirectCount=redirectCount+1;
 
 	if (redirectCount>maxRedirects){
@@ -830,9 +830,8 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 	}
 
 	if (intersectionDetails.distanceFromCamera==-1){
-		intensity = 123;
-		oldColour = Colour(rayDirection[0]*255,rayDirection[1]*255,rayDirection[2]*255);
-		return {10, oldColour, rayDirection};
+		oldColour = Colour(255,255,255);
+		return {123, oldColour, rayDirection};
 	}
 
 	if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
@@ -859,7 +858,10 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		glm::vec3 refractedRay = glm::normalize(refractRay(rayDirection, normal, 1.5f));
 		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 
+		intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
 		std::tuple<float, Colour, glm::vec3> refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+
+		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
 		std::tuple<float, Colour, glm::vec3> reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
 
 		float intensity1 = std::get<0>(refrPair);
@@ -886,7 +888,13 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		}
 		rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
-		auto refrPair = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+
+
+		intensity = std::get<0>(bounced);
+		oldColour = std::get<1>(bounced);
+
 
 	}else{
 		oldColour = Colour (255,255,255);
@@ -935,6 +943,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 				glm::vec3 newRay = std::get<2>(result);
 
 				if (intensity==123){ //this means it colided with the skybox
+					//needs skybox
 					uint32_t skyboxColour = getSkyboxPixel(newRay, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
 					window.setPixelColour(x, y, skyboxColour);
 				} else{
