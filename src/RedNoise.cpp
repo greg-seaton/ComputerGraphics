@@ -33,6 +33,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
+bool GDB_FILES = 0;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -809,16 +810,101 @@ Colour uint32ToColour(uint32_t color) {
     return Colour(r, g, b);
 }
 
-void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-    TextureMap texture("./assets/texture2.ppm"); // width: 480, height: 395
-    TextureMap backTexture("./assets/skybox/back.ppm");
-    TextureMap bottomTexture("./assets/skybox/bottom.ppm");
-    TextureMap frontTexture("./assets/skybox/front.ppm");
-    TextureMap leftTexture("./assets/skybox/left.ppm");
-    TextureMap rightTexture("./assets/skybox/right.ppm");
-    TextureMap topTexture("./assets/skybox/top.ppm");
-    TextureMap normalMap("./assets/normalMap2.ppm");
+Colour combineColours(float weight, const Colour &colour1, const Colour &colour2) {
+    int red = static_cast<int>(weight * colour1.red + (1.0f - weight) * colour2.red);
+    int green = static_cast<int>(weight * colour1.green + (1.0f - weight) * colour2.green);
+    int blue = static_cast<int>(weight * colour1.blue + (1.0f - weight) * colour2.blue);
+    return Colour(red, green, blue);
+}
 
+std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount){
+	Colour oldColour = Colour (255,255,255);
+	float intensity;
+	int maxRedirects = 10;
+	redirectCount=redirectCount+1;
+
+	if (redirectCount>maxRedirects){
+		intensity = 1;
+		oldColour = Colour(255,255,255);
+		return {intensity, oldColour, rayDirection};
+	}
+
+	if (intersectionDetails.distanceFromCamera==-1){
+		intensity = 123;
+		oldColour = Colour(rayDirection[0]*255,rayDirection[1]*255,rayDirection[2]*255);
+		return {10, oldColour, rayDirection};
+	}
+
+	if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
+		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+		
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
+		intensity = phong(intersectionDetails, lightSources, triangles, 1);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
+		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
+		oldColour = texture3D(intersectionDetails, texture);
+		redirectCount=maxRedirects;
+
+	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
+		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
+		float reflectionCoefficient = fresnel(rayDirection, normal, 1.5);
+
+		glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
+
+		glm::vec3 refractedRay = glm::normalize(refractRay(rayDirection, normal, 1.5f));
+		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+
+		std::tuple<float, Colour, glm::vec3> refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+		std::tuple<float, Colour, glm::vec3> reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+
+		float intensity1 = std::get<0>(refrPair);
+		Colour oldColour1 = std::get<1>(refrPair);
+
+		float intensity2 = std::get<0>(reflPair);
+		Colour oldColour2 = std::get<1>(reflPair);
+
+		intensity = reflectionCoefficient * intensity2 + (1.0f - reflectionCoefficient) * intensity1;
+		oldColour = combineColours(reflectionCoefficient, oldColour1, oldColour2);
+
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
+		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap);
+		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
+		vertexNormal = glm::normalize(vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
+		glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
+		if (METALIC_MIRROR == 1){
+			normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
+		}
+		rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
+		auto refrPair = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount);
+
+	}else{
+		oldColour = Colour (255,255,255);
+		intensity = 0;
+		std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
+	}
+	return {intensity, oldColour, rayDirection};
+}
+
+void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
+	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
+	TextureMap backTexture = GDB_FILES ? TextureMap("../assets/skybox/back.ppm") : TextureMap("./assets/skybox/back.ppm");
+	TextureMap bottomTexture = GDB_FILES ? TextureMap("../assets/skybox/bottom.ppm") : TextureMap("./assets/skybox/bottom.ppm");
+	TextureMap frontTexture = GDB_FILES ? TextureMap("../assets/skybox/front.ppm") : TextureMap("./assets/skybox/front.ppm");
+	TextureMap leftTexture = GDB_FILES ? TextureMap("../assets/skybox/left.ppm") : TextureMap("./assets/skybox/left.ppm");
+	TextureMap rightTexture = GDB_FILES ? TextureMap("../assets/skybox/right.ppm") : TextureMap("./assets/skybox/right.ppm");
+	TextureMap topTexture = GDB_FILES ? TextureMap("../assets/skybox/top.ppm") : TextureMap("./assets/skybox/top.ppm");
+	TextureMap normalMap = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
 	std::cout<<"skybox loaded"<<std::endl;
 
 	int focalLength = 2;
@@ -836,118 +922,30 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
 			if (glm::dot(intersectionDetails.intersectedTriangle.normal, pointToCam) > 0) {	
 				Colour oldColour = intersectionDetails.intersectedTriangle.colour;
-				Colour newColour (oldColour.red*0.4, oldColour.green*0.4, oldColour.blue*0.4); //if environment mapping is done, let it define this multiplier
+				Colour newColour (oldColour.red*0.4, oldColour.green*0.4, oldColour.blue*0.4);
 				window.setPixelColour(x, y, convertColour(newColour));
 				continue;
 			}
 
-			//sending rays to triangles, make this recursive
-			Colour oldColour;
-			float intensity;
-			int redirectCount = 0; //number of time to let this loop run (ie, max number of times light should bounce)
-			int maxRedirects = 10;
-			glm::vec3 intPoint;
-			glm::vec3 reflectedRay;
-			bool glass_hit=0;
-			float reflectionCoefficient;
+			if (intersectionDetails.distanceFromCamera != -1) {
+				std::tuple<float, Colour, glm::vec3> result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0);
 
-			if (intersectionDetails.distanceFromCamera == -1) {
-				redirectCount =maxRedirects;
-			}
-			while (redirectCount < maxRedirects){
+				float intensity = std::get<0>(result);
+				Colour oldColour = std::get<1>(result);
+				glm::vec3 newRay = std::get<2>(result);
 
-				if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
-					intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
-					oldColour = intersectionDetails.intersectedTriangle.colour;
-					redirectCount=maxRedirects;
-					
-				} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
-					intensity = phong(intersectionDetails, lightSources, triangles, 1);
-					oldColour = intersectionDetails.intersectedTriangle.colour;
-					redirectCount=maxRedirects;
-
-				} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
-					intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
-					oldColour = texture3D(intersectionDetails, texture);
-					redirectCount=maxRedirects;
-
-				} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
-					glass_hit=1;
-					glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
-					reflectionCoefficient = fresnel(rayDirection, normal, 1.5);
-					//mess around with this, dont want it to simply be a mirror when looking straight on
-					//sort out the positioning and shape of the glass as well
-
-					rayDirection = glm::normalize(refractRay(rayDirection, normal, 1.5));
-					intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
-					intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-
-					reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
-
-				} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
-					Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap);
-					glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
-					vertexNormal = glm::normalize(vertexNormal);
-					intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
-					oldColour = intersectionDetails.intersectedTriangle.colour;
-					redirectCount=maxRedirects;
-
-				} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
-					if (USE_MIRROR == 1){
-						glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
-						if (METALIC_MIRROR == 1){
-							normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
-						}
-						rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
-						intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
-						intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-					} else{
-						oldColour = intersectionDetails.intersectedTriangle.colour;
-						redirectCount=maxRedirects;
-
-					}
-					if (intersectionDetails.distanceFromCamera==-1){ //keep skybox fully shaded in the mirror
-						intensity = 1;
-					}else{
-						intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
-					}
-
-				}else{
-					intensity = 0;
-					std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
-				}
-			
-				redirectCount++;
-			}
-
-			Colour newColour;
-			if (glass_hit==1){
-				Colour reflected = uint32ToColour(getSkyboxPixel(reflectedRay, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture));
-				Colour refracted = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
-				reflectionCoefficient=0.5;
-
-				newColour = Colour(
-					(reflected.red * reflectionCoefficient) + (refracted.red * (1.0f - reflectionCoefficient)),
-					(reflected.green * reflectionCoefficient) + (refracted.green * (1.0f - reflectionCoefficient)),
-					(reflected.blue * reflectionCoefficient) + (refracted.blue * (1.0f - reflectionCoefficient))
-				);
-
-			}else{
-				newColour = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
-			}
-
-			//sort out skybox stuff
-			if (intersectionDetails.distanceFromCamera == -1) {
-				if (USE_SKYBOX==1){
-					uint32_t skyboxColour = getSkyboxPixel(rayDirection, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
+				if (intensity==123){ //this means it colided with the skybox
+					uint32_t skyboxColour = getSkyboxPixel(newRay, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
 					window.setPixelColour(x, y, skyboxColour);
-					continue;
-				}else{
-					continue;
-				} 
-			}
-			else{
-				window.setPixelColour(x, y, convertColour(newColour));
+				} else{
+					Colour newColour;
+					newColour = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
+
+					window.setPixelColour(x, y, convertColour(newColour));
+				}
+			} else{ //skybox time
+				uint32_t skyboxColour = getSkyboxPixel(rayDirection, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
+				window.setPixelColour(x, y, skyboxColour);
 			}
         }
     }	
@@ -1110,10 +1108,8 @@ std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_ma
         // Update the camera's orientation
         cameraOrientation = currentOrientation;
 
-
 		cameraPosition= glm::vec3(cameraPosition[0]+ xStepSize, cameraPosition[1]+ yStepSize, cameraPosition[2]+ zStepSize);
 
-		
 		frameNumber = render(triangles, window, indexToFile, lightSources, 1);
     }
 }
@@ -1126,6 +1122,7 @@ int main(int argc, char *argv[]) {
 	std::unordered_map<int, std::string> indexToFile;
 
 	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
@@ -1135,17 +1132,11 @@ int main(int argc, char *argv[]) {
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.75,-0.2,-0.5));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
-
-	std::vector<ModelTriangle> trianglesGlass = OBJparser ("./assets/glass-panel.obj", colours, 0.2, glm::vec3(0,0,1.5));
-	for (int i=triangles.size(); i<triangles.size()+trianglesGlass.size(); i++){
-		indexToFile[i] = "glass";
-	}
-	triangles.insert(triangles.end(), trianglesGlass.begin(), trianglesGlass.end());
 
 	std::cout<<triangles.size()<<std::endl;
 
@@ -1169,9 +1160,9 @@ int main(int argc, char *argv[]) {
 	indexToFile[9] = "normal-map";
 
 	// hardcodes red box to be glass
-    // for (int i = 12; i <= 21; ++i) {
-    //     indexToFile[i] = "glass";
-    // }
+    for (int i = 12; i <= 21; ++i) {
+        indexToFile[i] = "glass";
+    }
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
@@ -1184,7 +1175,8 @@ int main(int argc, char *argv[]) {
 	//bl, br, fl, fr
 	
 
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
+	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
+	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 	//flight corners
 
