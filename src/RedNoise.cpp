@@ -1450,6 +1450,39 @@ int main(int argc, char *argv[]) {
 				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
 			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_x){
+				std::cout << "x down - spoin red box" << std::endl;
+				//replace these with the correct indices
+						// float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3;
+						// float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3;
+						// float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3;
+
+						// float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3;
+						// float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3;
+						// float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3;
+
+						// float topMiddleX = (topMiddleX1 + topMiddleX2)/2;
+						// float topMiddleY = (topMiddleY1 + topMiddleY2)/2;
+						// float topMiddleZ = (topMiddleZ1 + topMiddleZ2)/2;
+
+						// float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3;
+						// float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3;
+						// float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3;
+
+						// float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3;
+						// float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3;
+						// float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3;
+
+						// float botMiddleX = (botMiddleX1 + botMiddleX2)/2;
+						// float botMiddleY = (botMiddleY1 + botMiddleY2)/2;
+						// float botMiddleZ = (botMiddleZ1 + botMiddleZ2)/2;
+
+						// float centroidX = topMiddleX + botMiddleX/2;
+						// float centroidY = topMiddleY + botMiddleY/2;
+						// float centroidZ = topMiddleZ + botMiddleZ/2;
+				render(triangles, window, indexToFile, lightSources,0);
+				window.renderFrame();
+			}
 			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
 			// 	std::cout << "j down - proximity lighting toggle" << std::endl;
 			// 	std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
@@ -1595,8 +1628,7 @@ int main(int argc, char *argv[]) {
 				std::cout << "z down - sequence" <<std::endl;
 				int frameNumber=0;
 
-
-				// //wireframe orbit
+				//wireframe orbit
 				renderMode = WIREFRAME;
 				for (int i=0; i<36; i++){
 					window.clearPixels();
@@ -1606,7 +1638,7 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
-				// //rasterise orbit
+				//rasterise orbit
 				renderMode = RASTERISE;
 				for (int i=0; i<36; i++){
 					window.clearPixels();
@@ -1616,7 +1648,6 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 				memset(DepthArray, 0, sizeof(DepthArray));
-
 
 				//ratrace orbit
 				renderMode = RAYTRACE;
@@ -1651,10 +1682,8 @@ int main(int argc, char *argv[]) {
 				std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 8); //try grid instead of normal
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-
 				moveSmoothly(cameraPosition, glm::vec3(0.0, 0.0, 4.0), cameraOrientation, glm::mat3 ({1,0,0},{0,1,0},{0,0,1}),
 				5, triangles, window, indexToFile, lightSources, frameNumber);
-
 
 				indexToFile[26] = "mirror";
 				indexToFile[31] = "mirror";
@@ -1675,6 +1704,7 @@ int main(int argc, char *argv[]) {
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
 				//make the box do a backslip
+				//should also make it move out of the box because weird stuff is happening when it collides
 				for (int i = 0; i < 3; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
