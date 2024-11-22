@@ -20,8 +20,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320*2
+#define HEIGHT 240*2
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -757,9 +757,18 @@ public:
 
     // Function to get the pixel from the skybox
     uint32_t getSkyboxPixel(glm::vec3 rayDirection) {
-        float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
         int u = 0;
         int v = 0;
+
+		rayDirection=glm::normalize(rayDirection);
+
+		if (std::isnan(rayDirection[0]) || std::isnan(rayDirection[1]) || std::isnan(rayDirection[2])){
+			std::cout<<"skybox nan!, will early return: "<<rayDirection[0]<<","<<rayDirection[1]<<","<<rayDirection[2]<<std::endl;
+			return convertColour(Colour(255,0,255));
+		}
+
+        float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
+
 
         int pixels_width = backTexture.width;
         int pixels_height = backTexture.height;
@@ -827,48 +836,97 @@ glm::vec3 convertToNormalVector(Colour colour) {
 }
 
 
-glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
-    float cosi = glm::dot(incidentRay, normal);
-    float eta = 1.0f / refractiveIndex;  // Assuming air's refractive index is 1.0
-
-    // If the ray is coming from the inside (refracting from the glass to air)
-    if (cosi > 0) {
-        eta = refractiveIndex;
-        cosi = -cosi;
-    }
-
-    // Compute the sine of the refraction angle
-    float k = 1.0f - eta * eta * (1.0f - cosi * cosi);
-    if (k < 0) {
-        // Total internal reflection
-        return glm::vec3(0.0f);  // We'll handle reflection elsewhere
-    }
-
-    // Refract the ray
-    glm::vec3 refractedRay = eta * incidentRay + (eta * cosi - sqrt(k)) * normal;
-    return glm::normalize(refractedRay);
+glm::vec3 refractRay(glm::vec3 &I, glm::vec3 &N, const float &ior){
+	float cosi = glm::clamp(glm::dot(I, N), -1.0f, 1.0f);
+    float etai = 1, etat = ior;
+    glm::vec3 n = N;
+    if (cosi < 0) { cosi = -cosi; } else { std::swap(etai, etat); n= -N; }
+    float eta = etai / etat;
+    float k = 1 - eta * eta * (1 - cosi * cosi);
+	return k < 0 ? glm::vec3(0.0f) : eta * I + (eta * cosi - sqrtf(k)) * n;
 }
 
-float fresnel(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
-    float cosi = glm::dot(incidentRay, normal);
-    float eta = refractiveIndex;
-    if (cosi > 0) {
-        eta = 1.0f / refractiveIndex;
+// glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
+//     // Ensure input vectors are normalized
+//     glm::vec3 normIncidentRay = glm::normalize(incidentRay);
+//     glm::vec3 normNormal = glm::normalize(normal);
+
+//     // Compute the cosine of the incident angle
+//     float cosi = glm::dot(normIncidentRay, normNormal);
+
+//     // Determine the refractive index ratio
+//     float eta = 1.0f / refractiveIndex;
+//     if (cosi > 0) {  // Inside to outside: flip normal and adjust eta
+//         eta = refractiveIndex;
+//         normNormal = -normNormal;
+//     }
+
+//     // Compute k and check for total internal reflection
+//     float k = 1.0f - eta * eta * (1.0f - cosi * cosi);
+//     if (k < 0.0f) {
+//         // Total internal reflection: return an invalid indicator or handle reflection
+//         // std::cerr << "Total internal reflection occurred!" << std::endl;
+//         return glm::vec3(std::numeric_limits<float>::quiet_NaN());
+//     }
+
+//     // Compute the refracted ray
+//     glm::vec3 refractedRay = eta * normIncidentRay + (eta * cosi - sqrt(std::max(k, 0.0f))) * normNormal;
+//     refractedRay = glm::normalize(refractedRay);
+
+//     // Debugging: Check for NaNs in the result
+//     // if (std::isnan(refractedRay.x) || std::isnan(refractedRay.y) || std::isnan(refractedRay.z)) {
+// 	// 	std::cout << "incidentRay: " << incidentRay.x << ", " << incidentRay.y << ", " << incidentRay.z << std::endl;
+// 	// 	std::cout << "normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
+//     //     std::cerr << "NaN in refracted ray: " 
+//     //               << refractedRay.x << ", " << refractedRay.y << ", " << refractedRay.z << std::endl;
+//     // }
+
+//     return refractedRay;
+// }
+
+
+// float fresnel(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
+//     float cosi = glm::dot(incidentRay, normal);
+//     float eta = refractiveIndex;
+//     if (cosi > 0) {
+//         eta = 1.0f / refractiveIndex;
+//     }
+
+//     float sintheta2 = eta * eta * (1.0f - cosi * cosi);
+//     if (sintheta2 > 1.0f) {
+//         // Total internal reflection
+//         return 1.0f;
+//     }
+
+//     float costheta = sqrt(1.0f - sintheta2);
+//     cosi = fabs(cosi);
+
+//     // Fresnel equation (Schlick's approximation)
+//     float r0 = (1.0f - eta) / (1.0f + eta);
+//     r0 = r0 * r0;
+//     return r0 + (1.0f - r0) * pow(1.0f - costheta, 5.0f);
+// }
+
+float fresnel(glm::vec3 &I, glm::vec3 &N){
+	const float ior = 1.5;
+    float cosi = glm::clamp(glm::dot(I, N),-1.0f, 1.0f);
+    float etai = 1, etat = ior;
+    if (cosi > 0) { std::swap(etai, etat); }
+    // Compute sini using Snell's law
+    float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi));
+    // Total internal reflection
+    if (sint >= 1) {
+		return 1;
     }
-
-    float sintheta2 = eta * eta * (1.0f - cosi * cosi);
-    if (sintheta2 > 1.0f) {
-        // Total internal reflection
-        return 1.0f;
+    else {
+        float cost = sqrtf(std::max(0.f, 1 - sint * sint));
+        cosi = fabsf(cosi);
+        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+        return (Rs * Rs + Rp * Rp) / 2;
     }
-
-    float costheta = sqrt(1.0f - sintheta2);
-    cosi = fabs(cosi);
-
-    // Fresnel equation (Schlick's approximation)
-    float r0 = (1.0f - eta) / (1.0f + eta);
-    r0 = r0 * r0;
-    return r0 + (1.0f - r0) * pow(1.0f - costheta, 5.0f);
+    // As a consequence of the conservation of energy, the transmittance is given by:
+    // kt = 1 - kr;
 }
 
 Colour uint32ToColour(uint32_t color) {
@@ -886,31 +944,21 @@ Colour combineColours(float weight, const Colour &colour1, const Colour &colour2
     return Colour(red, green, blue);
 }
 
-std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount, Skybox &skybox){
+std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount, Skybox &skybox){
 
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
-	int maxRedirects = 20;
+	int maxRedirects = 6;
 	redirectCount=redirectCount+1;
 
 	if (redirectCount>maxRedirects){ 
-		if (std::isnan(rayDirection[0])){ //going this if statement as a placeholder, but find where the nan is coming from
-			Colour dummy = Colour(255,255,255);
-			return {1, dummy, glm::normalize(rayDirection)};
-		}
-		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);
-		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
+		return {1, Colour (255,255,255)};
+		// return {1, intersectionDetails.intersectedTriangle.colour};
 	}
 
-	//need to properly implement skybox inside this function
 	if (intersectionDetails.distanceFromCamera==-1){
-		// std::cout<<rayDirection[0]<<","<<rayDirection[1]<<","<<rayDirection[2]<<std::endl; //got a -nan!
-		if (std::isnan(rayDirection[0])){ //going this if statement as a placeholder, but find where the nan is coming from
-			Colour dummy = Colour(255,255,255);
-			return {1, dummy, glm::normalize(rayDirection)};
-		}
-		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);//segfalt being caused here
-		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
+		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);
+		return {1, uint32ToColour(skyboxColour)};
 	}
 
 	if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
@@ -928,40 +976,54 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		oldColour = texture3D(intersectionDetails, texture);
 		redirectCount=maxRedirects;
 
-	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
+	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") { // recursive call
 		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
-		float reflectionCoefficient = glm::clamp(fresnel(rayDirection, normal, 1.5), 0.0f, 1.0f);
-
+		float reflectionCoefficient = 0.0f;
+		float refrIndex = 1.5f;
+		std::pair<float, Colour> refrPair;
 		glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
+		bool totalInternalReflection=false;
 
-		glm::vec3 refractedRay = glm::normalize(refractRay(rayDirection, normal, 1.5f));
+		// Calculate refracted and reflected rays
+		glm::vec3 refractedRay = refractRay(rayDirection, normal, refrIndex);
 		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 
-		intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
-		std::tuple<float, Colour, glm::vec3> refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
+		reflectionCoefficient = fresnel(rayDirection, normal);
 
+		// Check for total internal reflection (zero refracted ray length)
+		if (glm::length(refractedRay) == 0.0f) {  
+			refractedRay = glm::vec3(0.0f); // No contribution from refraction
+			reflectionCoefficient = 1.0f;  // Full reflection
+			refrPair = std::make_pair(0.0f, Colour(0, 0, 0));  // Intensity 0 and black color
+			totalInternalReflection = true;  // Mark that total internal reflection occurred
+		} else {
+			intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
+			refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
+		}
+
+		//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
+		reflectionCoefficient = 0.2f; 
+
+		// Reflective ray shoot
 		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-		std::tuple<float, Colour, glm::vec3> reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
-		//magic number jank?
+		auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
 
+		// Calculate the final colors by combining reflection and refraction results
+		Colour refrColour = Colour(refrPair.second.red * refrPair.first, refrPair.second.green * refrPair.first, refrPair.second.blue * refrPair.first);
+		Colour reflColour = Colour(reflPair.second.red * reflPair.first, reflPair.second.green * reflPair.first, reflPair.second.blue * reflPair.first);
 
-		float intensity1 = std::get<0>(refrPair);
-		Colour oldColour1 = std::get<1>(refrPair);
-
-		float intensity2 = std::get<0>(reflPair);
-		Colour oldColour2 = std::get<1>(reflPair);
-
-		if (intensity1 > 1){
-			std::cout<<"magic number "<<intensity1<<std::endl;
-		}
-		if (intensity2 > 1){
-			std::cout<<"magic number "<<intensity2<<std::endl;
+		if (totalInternalReflection == true){
+			return {1, refrColour};
 		}
 
-		//something going wrong in these last few lines here
-		intensity = reflectionCoefficient * intensity2 + (1.0f - reflectionCoefficient) * intensity1;
-		intensity =1;
-		oldColour = combineColours(reflectionCoefficient, oldColour1, oldColour2);
+		// Combine the colors based on the reflection coefficient
+		Colour combinedColour = combineColours(reflectionCoefficient, refrColour, reflColour);
+
+		// Set the intensity to 1 (or modify it if you want to factor in the reflection/refraction balance)
+		intensity = 1.0f;
+
+		return {intensity, combinedColour};
+
 
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap);
@@ -971,19 +1033,23 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		oldColour = intersectionDetails.intersectedTriangle.colour;
 		redirectCount=maxRedirects;
 
-	} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){ //recursive call
 		glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
 		if (METALIC_MIRROR == 1){
 			normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
 		}
 		rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+
+		if (std::isnan(rayDirection[0]) || std::isnan(rayDirection[1]) || std::isnan(rayDirection[2])){
+			std::cout<<"nan mirror reflection: "<<rayDirection[0]<<","<<rayDirection[1]<<","<<rayDirection[2]<<std::endl; //got a -nan!
+		}
+
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
 		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount,skybox);
 
-
-		intensity = std::get<0>(bounced);
-		oldColour = std::get<1>(bounced);
+		intensity = bounced.first;
+		oldColour = bounced.second;
 
 
 	}else{
@@ -991,7 +1057,10 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 		intensity = 0;
 		std::cout<<"sticky one still, check for indexToFile error"<<std::endl;
 	}
-	return {intensity, oldColour, glm::normalize(rayDirection)};
+	if (std::isnan(rayDirection[0])||std::isnan(rayDirection[1])||std::isnan(rayDirection[2])){
+		std::cout<<"nan ray direction3: "<<rayDirection[0]<<","<<rayDirection[1]<<","<<rayDirection[2]<<std::endl; //got a -nan!
+	}
+	return {intensity, oldColour};
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
@@ -1031,11 +1100,10 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			}
 
 			if (intersectionDetails.distanceFromCamera != -1) {
-				std::tuple<float, Colour, glm::vec3> result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0, skybox);
+				auto result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0, skybox);
 
-				float intensity = std::get<0>(result);
-				Colour oldColour = std::get<1>(result);
-				glm::vec3 newRay = std::get<2>(result);
+				float intensity = result.first;
+				Colour oldColour = result.second;
 
 				Colour newColour;
 				newColour = Colour(oldColour.red*intensity, oldColour.green*intensity, oldColour.blue*intensity);
