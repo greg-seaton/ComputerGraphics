@@ -948,7 +948,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
-	int maxRedirects = 6;
+	int maxRedirects = 10;
 	redirectCount=redirectCount+1;
 
 	if (redirectCount>maxRedirects){ 
@@ -976,6 +976,8 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 		oldColour = texture3D(intersectionDetails, texture);
 		redirectCount=maxRedirects;
 
+	//glass is looking goodish, but not perfect, think i need to find a way to handle rays being within the glass or not, probably just by passing a bool
+	//also get rid of the chat gpt code
 	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") { // recursive call
 		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
 		float reflectionCoefficient = 0.0f;
@@ -1002,7 +1004,8 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 		}
 
 		//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
-		reflectionCoefficient = 0.2f; 
+		reflectionCoefficient += 0.3f;
+		if (reflectionCoefficient>1){reflectionCoefficient=1;}
 
 		// Reflective ray shoot
 		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
@@ -1013,7 +1016,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 		Colour reflColour = Colour(reflPair.second.red * reflPair.first, reflPair.second.green * reflPair.first, reflPair.second.blue * reflPair.first);
 
 		if (totalInternalReflection == true){
-			return {1, refrColour};
+			return {1, reflColour}; //refl or refr?
 		}
 
 		// Combine the colors based on the reflection coefficient
@@ -1305,14 +1308,23 @@ int main(int argc, char *argv[]) {
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
+	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
+	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
+		indexToFile[i] = "glass";
+	}
+	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
+
+
 	std::cout<<triangles.size()<<std::endl;
 
 
 	//blue box is indexes 22-31
 
 	//hardcodes front of blue box to be a mirror
-	indexToFile[26] = "mirror";
-	indexToFile[31] = "mirror";
+	if (USE_MIRROR){
+		indexToFile[26] = "mirror";
+		indexToFile[31] = "mirror";
+	}
 
 	//hardcodes the floor to be textured
 	indexToFile[6] = "textured-floor";
@@ -1327,9 +1339,9 @@ int main(int argc, char *argv[]) {
 	indexToFile[9] = "normal-map";
 
 	// hardcodes red box to be glass
-    for (int i = 12; i <= 21; ++i) {
-        indexToFile[i] = "glass";
-    }
+    // for (int i = 12; i <= 21; ++i) {
+    //     indexToFile[i] = "glass";
+    // }
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
