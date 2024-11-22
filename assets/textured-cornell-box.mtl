@@ -22,6 +22,15 @@ Kd 1.000000 0.000000 1.000000
 newmtl Cyan
 Kd 0.000000 1.000000 1.000000
 
+newmtl PastelBlue
+Kd 0.678431 0.847059 1.000000
+
+newmtl PastelGreen
+Kd 0.400000 0.800000 0.400000
+
+newmtl PastelYellow
+Kd 1.000000 1.000000 0.200000
+
 newmtl Green
 Kd 1.000000 1.000000 1.000000
 map_Kd texture.ppm

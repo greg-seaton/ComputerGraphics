@@ -20,15 +20,15 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*2
-#define HEIGHT 240*2
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
-renderType renderMode = RASTERISE;
+renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
-bool USE_MIRROR = 1;
+bool USE_MIRROR = 0;
 bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
@@ -637,9 +637,9 @@ glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 }
 
 Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &texture){
-	if (USE_TEXTURED_FLOOR==0){
-		return intersectionDetails.intersectedTriangle.colour;
-	}
+	// if (USE_TEXTURED_FLOOR==0){
+	// 	return intersectionDetails.intersectedTriangle.colour;
+	// }
 	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
 
 	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.texturePoints[0].x+
@@ -686,79 +686,25 @@ Colour vertexNormalFinder(RayTriangleIntersection intersectionDetails, TextureMa
 	uint8_t g = (pixel >> 8) & 0xFF;
 	uint8_t b = pixel & 0xFF;
 
-	//prints values for the textured top
-	// if (intersectionDetails.triangleIndex!=6 && intersectionDetails.triangleIndex!=7){
-	// 	std::cout<<intersectionDetails.triangleIndex<<","<<Colour(r,g,b)<<std::endl;
-	// 	std::cout<<"intersection point: "<<intersectionDetails.intersectionPoint[0]<<","<<intersectionDetails.intersectionPoint[1]<<","<<intersectionDetails.intersectionPoint[2]<<std::endl;
-	// 	std::cout << "Texture X: " << textureXdistance << ", Y: " << textureYdistance << std::endl;
-	// 	std::cout << "u:" <<u<<"v: "<<v<<std::endl;
-	// }
 	return Colour(r,g,b);
 }
 
-// uint32_t getSkyboxPixel(glm::vec3 rayDirection, TextureMap &backTexture, TextureMap &bottomTexture, TextureMap &frontTexture, TextureMap &leftTexture, TextureMap &rightTexture, TextureMap &topTexture){
-
-// 	float dominantDirection = std::fmax(std::fmax(abs(rayDirection[0]), abs(rayDirection[1])), abs(rayDirection[2]));
-// 	int u=0;
-// 	int v=0;
-
-//     int pixels_width = backTexture.width;
-//     int pixels_height = backTexture.height;
-
-// 	if (dominantDirection == abs(rayDirection[0])){ //left or right
-// 		if (rayDirection[0]>0){
-// 			u = round((-rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return rightTexture.pixels[v * pixels_width + u];
-// 		} else{
-// 			u = round((rayDirection[2] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((-rayDirection[1] / abs(rayDirection[0]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return leftTexture.pixels[v * pixels_width + u];
-// 		}
-// 	} else if (dominantDirection == abs(rayDirection[1])){ //top or bottom
-// 		if (rayDirection[1]>0){ //top
-// 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return topTexture.pixels[v * pixels_width + u];
-// 		} else{ //bottom
-// 			u = round((rayDirection[0] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((-rayDirection[2] / abs(rayDirection[1]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return bottomTexture.pixels[v * pixels_width + u];
-// 		}
-// 	}else if (dominantDirection == abs(rayDirection[2])){ //front or back
-// 		if (rayDirection[2]>0){
-// 			u = round((rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return frontTexture.pixels[v * pixels_width + u];
-// 		} else{
-// 			u = round((-rayDirection[0] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_width - 1));
-// 			v = round((-rayDirection[1] / abs(rayDirection[2]) + 1.0f) * 0.5f * (pixels_height - 1));
-//             return backTexture.pixels[v * pixels_width + u];
-// 		}
-// 	} else{
-// 		std::cout<<"fatal skybox error!"<<std::endl;
-// 		std::cout<<rayDirection[0]<<std::endl;
-// 		std::cout<<rayDirection[1]<<std::endl;
-// 		std::cout<<rayDirection[2]<<std::endl;
-// 		std::cout<<dominantDirection<<std::endl;
-// 		return 0;
-// 	}
-// }
-
 class Skybox {
 public:
-    // Constructor that takes TextureMap objects as arguments
-    Skybox(TextureMap& texture, TextureMap& backTexture, TextureMap& bottomTexture,
+    Skybox(TextureMap& backTexture, TextureMap& bottomTexture,
            TextureMap& frontTexture, TextureMap& leftTexture, TextureMap& rightTexture, 
-           TextureMap& topTexture, TextureMap& normalMap)
-        : texture(texture), backTexture(backTexture), bottomTexture(bottomTexture),
+           TextureMap& topTexture)
+        : backTexture(backTexture), bottomTexture(bottomTexture),
           frontTexture(frontTexture), leftTexture(leftTexture), rightTexture(rightTexture), 
-          topTexture(topTexture), normalMap(normalMap) {}
+          topTexture(topTexture) {}
 
-    // Function to get the pixel from the skybox
     uint32_t getSkyboxPixel(glm::vec3 rayDirection) {
         int u = 0;
         int v = 0;
+
+		if (USE_SKYBOX==0){
+			return 0;
+		}
 
 		rayDirection=glm::normalize(rayDirection);
 
@@ -814,14 +760,12 @@ public:
     }
 
 private:
-    TextureMap texture;
     TextureMap backTexture;
     TextureMap bottomTexture;
     TextureMap frontTexture;
     TextureMap leftTexture;
     TextureMap rightTexture;
     TextureMap topTexture;
-    TextureMap normalMap;
 };
 
 glm::vec3 convertToNormalVector(Colour colour) {
@@ -944,7 +888,8 @@ Colour combineColours(float weight, const Colour &colour1, const Colour &colour2
     return Colour(red, green, blue);
 }
 
-std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture, TextureMap &normalMap, int redirectCount, Skybox &skybox){
+std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture,
+TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureMap &normalMap4, int redirectCount, Skybox &skybox){
 
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
@@ -991,6 +936,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 
 		reflectionCoefficient = fresnel(rayDirection, normal);
+		reflectionCoefficient = std::min(reflectionCoefficient + 0.3f, 1.0f);
 
 		// Check for total internal reflection (zero refracted ray length)
 		if (glm::length(refractedRay) == 0.0f) {  
@@ -1000,7 +946,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 			totalInternalReflection = true;  // Mark that total internal reflection occurred
 		} else {
 			intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
-			refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
+			refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
 		}
 
 		//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
@@ -1009,7 +955,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 
 		// Reflective ray shoot
 		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-		auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap, redirectCount, skybox);
+		auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
 
 		// Calculate the final colors by combining reflection and refraction results
 		Colour refrColour = Colour(refrPair.second.red * refrPair.first, refrPair.second.green * refrPair.first, refrPair.second.blue * refrPair.first);
@@ -1028,8 +974,29 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 		return {intensity, combinedColour};
 
 
-	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map"){
-		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap);
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map1"){
+		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap1);
+		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
+		vertexNormal = glm::normalize(vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map2"){
+		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap2);
+		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
+		vertexNormal = glm::normalize(vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map3"){
+		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap3);
+		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
+		vertexNormal = glm::normalize(vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		oldColour = intersectionDetails.intersectedTriangle.colour;
+		redirectCount=maxRedirects;
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map4"){
+		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap4);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 		vertexNormal = glm::normalize(vertexNormal);
 		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
@@ -1049,7 +1016,7 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, redirectCount,skybox);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount,skybox);
 
 		intensity = bounced.first;
 		oldColour = bounced.second;
@@ -1067,19 +1034,23 @@ std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::un
 }
 
 void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> &indexToFile, std::vector<glm::vec3> &lightSources) {    
-	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
 	TextureMap backTexture = GDB_FILES ? TextureMap("../assets/skybox/back.ppm") : TextureMap("./assets/skybox/back.ppm");
 	TextureMap bottomTexture = GDB_FILES ? TextureMap("../assets/skybox/bottom.ppm") : TextureMap("./assets/skybox/bottom.ppm");
 	TextureMap frontTexture = GDB_FILES ? TextureMap("../assets/skybox/front.ppm") : TextureMap("./assets/skybox/front.ppm");
 	TextureMap leftTexture = GDB_FILES ? TextureMap("../assets/skybox/left.ppm") : TextureMap("./assets/skybox/left.ppm");
 	TextureMap rightTexture = GDB_FILES ? TextureMap("../assets/skybox/right.ppm") : TextureMap("./assets/skybox/right.ppm");
 	TextureMap topTexture = GDB_FILES ? TextureMap("../assets/skybox/top.ppm") : TextureMap("./assets/skybox/top.ppm");
-	TextureMap normalMap = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
 
 	//initilise skybox object
-	Skybox skybox(texture, backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture, normalMap);
+	Skybox skybox(backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
 
 	std::cout<<"skybox loaded"<<std::endl;
+
+	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
+	TextureMap normalMap1 = GDB_FILES ? TextureMap("../assets/normalMap1.ppm") : TextureMap("./assets/normalMap1.ppm");
+	TextureMap normalMap2 = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
+	TextureMap normalMap3 = GDB_FILES ? TextureMap("../assets/normalMap3.ppm") : TextureMap("./assets/normalMap3.ppm");
+	TextureMap normalMap4 = GDB_FILES ? TextureMap("../assets/normalMap4.ppm") : TextureMap("./assets/normalMap4.ppm");
 
 
 	int focalLength = 2;
@@ -1103,7 +1074,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			}
 
 			if (intersectionDetails.distanceFromCamera != -1) {
-				auto result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap, 0, skybox);
+				auto result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, 0, skybox);
 
 				float intensity = result.first;
 				Colour oldColour = result.second;
@@ -1126,7 +1097,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 //COMPILER_OPTIONS := -c -pthread -pipe -Wall -std=c++11 # If you have an older compiler, you might have to use -std=c++0x
 //LINKER_OPTIONS := -pthread
 void drawRayTracedParallelise(std::vector<ModelTriangle> &triangles, DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources) {
-    const int numThreads = 4;  // Number of threads you want to use
+    const int numThreads = 8;  // Number of threads you want to use
     int sectionHeight = HEIGHT / numThreads;
 
     std::vector<std::thread> threads;
@@ -1284,6 +1255,24 @@ std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_ma
     }
 }
 
+void printVec3(const glm::vec3& vec) {
+    std::cout << "Vec3: (" 
+              << vec.x << ", " 
+              << vec.y << ", " 
+              << vec.z << ")" << std::endl;
+}
+
+void printMat3(const glm::mat3& mat) {
+    std::cout << "Mat4:" << std::endl;
+    for (int i = 0; i < 3; ++i) {
+        std::cout << "(";
+        for (int j = 0; j < 3; ++j) {
+            std::cout << mat[i][j] << " ";
+        }
+        std::cout << ")" << std::endl;
+    }
+}
+
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -1335,8 +1324,24 @@ int main(int argc, char *argv[]) {
 	// indexToFile[17] = "normal-map";
 
 	//hardcodes left wall to be normal map
-	indexToFile[8] = "normal-map";
-	indexToFile[9] = "normal-map";
+	indexToFile[8] = "normal-map1";
+	indexToFile[9] = "normal-map2";
+
+	//first red box index = 12
+	//hardcodes each side of the red box to be a different normal mao
+	indexToFile [12] = "normal-map1";
+	indexToFile [17] = "normal-map1";
+
+	indexToFile [13] = "normal-map2";
+	indexToFile [16] = "normal-map2";
+
+	indexToFile [14] = "normal-map3";
+	indexToFile [17] = "normal-map3";
+
+	indexToFile [15] = "normal-map4";
+	indexToFile [18] = "normal-map4";
+
+
 
 	// hardcodes red box to be glass
     // for (int i = 12; i <= 21; ++i) {
@@ -1355,7 +1360,9 @@ int main(int argc, char *argv[]) {
 	
 
 	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
+	std::vector<glm::vec3> lightSources = {glm::vec3(-0.8,0.8,0.8)};
+	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
+
 
 	//flight corners
 
@@ -1399,6 +1406,14 @@ int main(int argc, char *argv[]) {
 				std::cout << "move right" << std::endl;
 				cameraPosition.x=cameraPosition.x+0.1;
 			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_p){
+				std::cout << "move up" << std::endl;
+				cameraPosition.y=cameraPosition.y+0.1;
+			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
+				std::cout << "move up" << std::endl;
+				cameraPosition.y=cameraPosition.y-0.1;
+			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_DOWN){
 				std::cout << "look down" << std::endl;
 				tilt(convertDegrees(1.5));
@@ -1415,10 +1430,10 @@ int main(int argc, char *argv[]) {
 				std::cout << "look left" << std::endl;
 				pan(convertDegrees(-1.5));
 			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_p){
-				std::cout << "look at origin" << std::endl;
-				lookAt(glm::vec3 (0,0,0));
-			}
+			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_p){
+			// 	std::cout << "look at origin" << std::endl;
+			// 	lookAt(glm::vec3 (0,0,0));
+			// }
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_b){
 				std::cout << "b down - wireframe" << std::endl;
 				renderMode = WIREFRAME;
@@ -1435,49 +1450,54 @@ int main(int argc, char *argv[]) {
 				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
 			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
-				std::cout << "j down - proximity lighting toggle" << std::endl;
-				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
-				lightingMode[0] = abs(lightingMode[0]-1);
-			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_k){
-				std::cout << "k down - area of incidence lighting toggle" << std::endl;
-				std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
-				lightingMode[1] = abs(lightingMode[1]-1);
-			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
-				render(triangles, window, indexToFile, lightSources,0);
-				window.renderFrame();
-			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
-				std::cout<<"l down - switch lightsource"<<std::endl;
-				if (lightSources.size()>1){
-						lightSources =  {
-							glm::vec3(0, 0.9f, 0)};
-				} else{
-						lightSources =  {
-							glm::vec3(0, 0.9f, 0),
-							glm::vec3(0, 0.9f, 0),
-							glm::vec3(0, 0.9f, 0),
-							glm::vec3(0, 0.9f, 0)
-						};
-				}
-				render(triangles, window, indexToFile, lightSources,0);
-				window.renderFrame();
-				std::cout<<"light source switched"<<std::endl;
+			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
+			// 	std::cout << "j down - proximity lighting toggle" << std::endl;
+			// 	std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
+			// 	lightingMode[0] = abs(lightingMode[0]-1);
+			// }
+			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_k){
+			// 	std::cout << "k down - area of incidence lighting toggle" << std::endl;
+			// 	std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
+			// 	lightingMode[1] = abs(lightingMode[1]-1);
+			// }
+			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
+			// 	render(triangles, window, indexToFile, lightSources,0);
+			// 	window.renderFrame();
+			// }
+			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
+			// 	std::cout<<"l down - switch lightsource"<<std::endl;
+			// 	if (lightSources.size()>1){
+			// 			lightSources =  {
+			// 				glm::vec3(0, 0.9f, 0)};
+			// 	} else{
+			// 			lightSources =  {
+			// 				glm::vec3(0, 0.9f, 0),
+			// 				glm::vec3(0, 0.9f, 0),
+			// 				glm::vec3(0, 0.9f, 0),
+			// 				glm::vec3(0, 0.9f, 0)
+			// 			};
+			// 	}
+			// 	render(triangles, window, indexToFile, lightSources,0);
+			// 	window.renderFrame();
+			// 	std::cout<<"light source switched"<<std::endl;
 
-			}
+			// }
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_h){
 				std::cout<<"h down moving smoothly"<<std::endl;
 				moveSmoothly(glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 0.0, 0), glm::mat3 ({1,0,0},{0,1,0},{0,0,1}), glm::mat3 ({0, 0, -1}, {0, 1, 0}, {1, 0, 0}), 20,
 				triangles, window, indexToFile, lightSources, 1); //these added so that rendering can be done within the functiuon
 			};
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_c){
+				std::cout<<"c down print location and orientation"<<std::endl;
+				printVec3(cameraPosition);
+				printMat3(cameraOrientation);
 
+			};
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_f){
 				std::cout << "f down, move up and then do a backflip" << std::endl;
 
 				//move rectangle up
-				for (int i = 0; i < 5; i++){
+				for (int i = 0; i < 2; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
@@ -1544,7 +1564,7 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 				}
 
-				for (int i = 0; i < 5; i++){
+				for (int i = 0; i < 3; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
@@ -1565,12 +1585,19 @@ int main(int argc, char *argv[]) {
 					// run this after each window.renderFrame()
 				// ffmpeg -framerate 25 -i frame_%d.ppm -c:v libx264 -movflags +faststart output.mp4
 
-
+				//cool place to wathc the light move from
+				//Vec3: (0, 1.4, 2.8)
+				// Mat4:
+				// (1 0 0 )
+				// (0 0.838671 0.544639 )
+				// (0 -0.544639 0.838671 )
 
 				std::cout << "z down - sequence" <<std::endl;
 				int frameNumber=0;
 
+
 				// //wireframe orbit
+				renderMode = WIREFRAME;
 				for (int i=0; i<36; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
@@ -1600,29 +1627,132 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 				window.clearPixels();
-				USE_MIRROR = 1;
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-				window.clearPixels();
-				METALIC_MIRROR = 1;
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				USE_SKYBOX=1;
 
-				window.clearPixels();
-				USE_TEXTURED_FLOOR = 1;
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-
+				moveSmoothly(cameraPosition, glm::vec3(0,1.4f,2.8f), cameraOrientation, glm::mat3(
+						1.0f, 0.0f, 0.0f, 
+						0.0f, 0.838671f, 0.544639f, 
+						0.0f, -0.544639f, 0.838671f
+					), 5, triangles, window, indexToFile, lightSources, frameNumber);  //destination mamtrix isnt quite right
 
 				for (int i = 0; i < 5; i++) {
 					float shift = 1.0f - i * 0.2f;
 					window.clearPixels();
 					std::vector<glm::vec3> lightSources = {
-						glm::vec3(-0.8f * shift, 0.9f, -0.8f * shift),
-						glm::vec3(0.8f * shift, 0.9f, -0.8f * shift),
-						glm::vec3(-0.8f * shift, 0.9f, 0.8f * shift),
-						glm::vec3(0.8f * shift, 0.9f, 0.8f * shift)
+						glm::vec3(-0.8f * shift, 0.8f, -0.8f * shift),
+						glm::vec3(0.8f * shift, 0.8f, -0.8f * shift),
+						glm::vec3(-0.8f * shift, 0.8f, 0.8f * shift),
+						glm::vec3(0.8f * shift, 0.8f, 0.8f * shift)
 					};
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 8); //try grid instead of normal
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				moveSmoothly(cameraPosition, glm::vec3(0.0, 0.0, 4.0), cameraOrientation, glm::mat3 ({1,0,0},{0,1,0},{0,0,1}),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				indexToFile[26] = "mirror";
+				indexToFile[31] = "mirror";
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				indexToFile[8] = "normal-map";
+				indexToFile[9] = "normal-map";
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				window.clearPixels();
+				METALIC_MIRROR = 0;
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				window.clearPixels();
+				USE_TEXTURED_FLOOR = 1;
+				indexToFile[6] = "textured-floor";
+				indexToFile[7] = "textured-floor";
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				//make the box do a backslip
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						triangles[j].vertices[0].y += 0.05;
+						triangles[j].vertices[1].y += 0.05;
+						triangles[j].vertices[2].y += 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
+
+				float angleToChange = convertDegrees(6);
+
+				//make the rectangle do a backflip
+				for (int s=0; s<60; s++) {
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						//calculate the centroid of the cubeoid
+						float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3;
+						float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3;
+						float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3;
+
+						float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3;
+						float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3;
+						float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3;
+
+						float topMiddleX = (topMiddleX1 + topMiddleX2)/2;
+						float topMiddleY = (topMiddleY1 + topMiddleY2)/2;
+						float topMiddleZ = (topMiddleZ1 + topMiddleZ2)/2;
+
+						float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3;
+						float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3;
+						float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3;
+
+						float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3;
+						float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3;
+						float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3;
+
+						float botMiddleX = (botMiddleX1 + botMiddleX2)/2;
+						float botMiddleY = (botMiddleY1 + botMiddleY2)/2;
+						float botMiddleZ = (botMiddleZ1 + botMiddleZ2)/2;
+
+						float centroidX = topMiddleX + botMiddleX/2;
+						float centroidY = topMiddleY + botMiddleY/2;
+						float centroidZ = topMiddleZ + botMiddleZ/2;
+
+						for (int k = 0; k < 3; k++) {
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;
+
+							float rotatedY = y * cos(angleToChange) - z * sin(angleToChange);
+							float rotatedZ = y * sin(angleToChange) + z * cos(angleToChange);
+
+							triangles[j].vertices[k].x = x + centroidX;
+							triangles[j].vertices[k].y = rotatedY + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
+
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 22; j < 32; j++){
+						triangles[j].vertices[0].y -= 0.05;
+						triangles[j].vertices[1].y -= 0.05;
+						triangles[j].vertices[2].y -= 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 				}
 
 				std::cout<<"sequence end"<<std::endl;
