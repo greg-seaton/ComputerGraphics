@@ -33,7 +33,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 1;
+bool GDB_FILES = 0;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -893,13 +893,22 @@ std::tuple<float, Colour, glm::vec3> shootRay(std::vector<ModelTriangle> &triang
 	int maxRedirects = 20;
 	redirectCount=redirectCount+1;
 
-	if (redirectCount>maxRedirects){ //ray direction could be wrong?
-		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection); //segfalt being caused here
+	if (redirectCount>maxRedirects){ 
+		if (std::isnan(rayDirection[0])){ //going this if statement as a placeholder, but find where the nan is coming from
+			Colour dummy = Colour(255,255,255);
+			return {1, dummy, glm::normalize(rayDirection)};
+		}
+		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);
 		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
 	}
 
 	//need to properly implement skybox inside this function
 	if (intersectionDetails.distanceFromCamera==-1){
+		// std::cout<<rayDirection[0]<<","<<rayDirection[1]<<","<<rayDirection[2]<<std::endl; //got a -nan!
+		if (std::isnan(rayDirection[0])){ //going this if statement as a placeholder, but find where the nan is coming from
+			Colour dummy = Colour(255,255,255);
+			return {1, dummy, glm::normalize(rayDirection)};
+		}
 		uint32_t skyboxColour = skybox.getSkyboxPixel(rayDirection);//segfalt being caused here
 		return {1, uint32ToColour(skyboxColour), glm::normalize(rayDirection)};
 	}
@@ -1211,18 +1220,18 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
 
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
