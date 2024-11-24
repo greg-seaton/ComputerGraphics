@@ -20,8 +20,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -831,7 +831,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap1);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 		vertexNormal = glm::normalize(vertexNormal);
-		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
 		oldColour = intersectionDetails.intersectedTriangle.colour;
 		redirectCount=maxRedirects;
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map2"){
@@ -1187,15 +1187,30 @@ int main(int argc, char *argv[]) {
 	// indexToFile [12] = "mirror"; // top left
 	// indexToFile [17] = "mirror"; //top right
 
+	//top 12,17
+	//front 14,19
+	//right 15,20
+	
+
 	indexToFile [13] = "normal-map1"; //back
 	indexToFile [18] = "normal-map1"; //back
 
 	indexToFile [14] = "normal-map1"; //front
 	indexToFile [19] = "normal-map1"; //front
 
-	indexToFile [15] = "normal-map3"; //right
-	indexToFile [20] = "normal-map3"; //right
+	indexToFile [15] = "normal-map1"; //right
+	indexToFile [20] = "normal-map1"; //right
 
+	indexToFile [16] = "normal-map1"; //right
+	indexToFile [21] = "normal-map1"; //right
+
+	indexToFile [17] = "normal-map1"; //right
+	indexToFile [22] = "normal-map1"; //right
+
+
+    for (int i = 12; i <= 21; ++i) {
+        indexToFile[i] = "normal-map1";
+    }
 
 
 
