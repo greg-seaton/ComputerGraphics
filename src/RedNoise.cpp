@@ -20,8 +20,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 320*3
+#define HEIGHT 240*3
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -33,7 +33,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 1;
+bool GDB_FILES = 0;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -528,11 +528,6 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 }
 
 float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> &triangles, float extraMultiplier){
-	//commented out to allow sphere to only use angle of incidence
-	// if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
-	// 		return 0.2;
-	// }
-
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 	std::array<glm::vec3,3> normals = intersectionDetails.intersectedTriangle.normals;
@@ -562,17 +557,12 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 	return reducedIntensity;
 }
 
-
 //works well, can prob be combined with genericShading now!
 float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, glm::vec3 VertexNormal, std::vector<ModelTriangle> &triangles, float extraMultiplier){
 	glm::vec3 Vertex = intersectionDetails.intersectionPoint;
 	glm::vec3 viewVector = glm::normalize(cameraPosition - Vertex);
 	float lightSourceReduction = lightSources.size();
 	float ambientIntensity = 0.2;
-
-	// if (intersectionDetails.triangleIndex!=12 || intersectionDetails.triangleIndex!=17){
-	// 	std::cout<<VertexNormal[0]<<","<<VertexNormal[1]<<","<<VertexNormal[2]<<std::endl;
-	// }
 
 	float intensity=0;
 	for (glm::vec3 lightSource:lightSources){
@@ -596,12 +586,6 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 
 float genericShading(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> lightSources, std::vector<ModelTriangle> &triangles, glm::vec3 VertexNormal){
 	//redirects to generic shading for multiple light sources
-
-
-	// if (intersectionDetails.triangleIndex!=12 || intersectionDetails.triangleIndex!=17){
-	// 	std::cout<<VertexNormal[0]<<","<<VertexNormal[1]<<","<<VertexNormal[2]<<std::endl;
-	// }
-
 	if (lightSources.size()>1){
 		return genericShadingMLS(intersectionDetails, lightSources, VertexNormal, triangles, 1); //final value is the lightsource multiplier. let this be controlled by main for the final sequence
 	}
@@ -656,32 +640,6 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &textur
 
 	//grab pixel
 	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];	//convert to RGB format so it can be manipulated by intensity later
-	uint8_t r = (pixel >> 16) & 0xFF;
-	uint8_t g = (pixel >> 8) & 0xFF;
-	uint8_t b = pixel & 0xFF;
-
-	return Colour(r,g,b);
-}
-
-Colour vertexNormalFinder(RayTriangleIntersection intersectionDetails, TextureMap texture, std::vector<uint32_t> pixels){
-	// if (USE_TEXTURED_FLOOR==0){ //do a vertex normal equivalent
-	// 	return intersectionDetails.intersectedTriangle.colour;
-	// }
-	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
-
-	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.vertices[0].x+
-				barycentrics[0]*intersectionDetails.intersectedTriangle.vertices[1].x+
-				barycentrics[2]*intersectionDetails.intersectedTriangle.vertices[2].x;
-
-	float v = barycentrics[1]*intersectionDetails.intersectedTriangle.vertices[0].y+
-				barycentrics[0]*intersectionDetails.intersectedTriangle.vertices[1].y+
-				barycentrics[2]*intersectionDetails.intersectedTriangle.vertices[2].y;
-
-	int textureXdistance = round(u*texture.width);
-	int textureYdistance = round(v*texture.height);
-	//grab pixel
-	uint32_t pixel = texture.pixels[textureYdistance * texture.width + textureXdistance];
-	//convert to RGB format so it can be manipulated by intensity later
 	uint8_t r = (pixel >> 16) & 0xFF;
 	uint8_t g = (pixel >> 8) & 0xFF;
 	uint8_t b = pixel & 0xFF;
@@ -779,100 +737,6 @@ glm::vec3 convertToNormalVector(Colour colour) {
     return glm::normalize(normal);
 }
 
-
-glm::vec3 refractRay(glm::vec3 &I, glm::vec3 &N, const float &ior){
-	float cosi = glm::clamp(glm::dot(I, N), -1.0f, 1.0f);
-    float etai = 1, etat = ior;
-    glm::vec3 n = N;
-    if (cosi < 0) { cosi = -cosi; } else { std::swap(etai, etat); n= -N; }
-    float eta = etai / etat;
-    float k = 1 - eta * eta * (1 - cosi * cosi);
-	return k < 0 ? glm::vec3(0.0f) : eta * I + (eta * cosi - sqrtf(k)) * n;
-}
-
-// glm::vec3 refractRay(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
-//     // Ensure input vectors are normalized
-//     glm::vec3 normIncidentRay = glm::normalize(incidentRay);
-//     glm::vec3 normNormal = glm::normalize(normal);
-
-//     // Compute the cosine of the incident angle
-//     float cosi = glm::dot(normIncidentRay, normNormal);
-
-//     // Determine the refractive index ratio
-//     float eta = 1.0f / refractiveIndex;
-//     if (cosi > 0) {  // Inside to outside: flip normal and adjust eta
-//         eta = refractiveIndex;
-//         normNormal = -normNormal;
-//     }
-
-//     // Compute k and check for total internal reflection
-//     float k = 1.0f - eta * eta * (1.0f - cosi * cosi);
-//     if (k < 0.0f) {
-//         // Total internal reflection: return an invalid indicator or handle reflection
-//         // std::cerr << "Total internal reflection occurred!" << std::endl;
-//         return glm::vec3(std::numeric_limits<float>::quiet_NaN());
-//     }
-
-//     // Compute the refracted ray
-//     glm::vec3 refractedRay = eta * normIncidentRay + (eta * cosi - sqrt(std::max(k, 0.0f))) * normNormal;
-//     refractedRay = glm::normalize(refractedRay);
-
-//     // Debugging: Check for NaNs in the result
-//     // if (std::isnan(refractedRay.x) || std::isnan(refractedRay.y) || std::isnan(refractedRay.z)) {
-// 	// 	std::cout << "incidentRay: " << incidentRay.x << ", " << incidentRay.y << ", " << incidentRay.z << std::endl;
-// 	// 	std::cout << "normal: " << normal.x << ", " << normal.y << ", " << normal.z << std::endl;
-//     //     std::cerr << "NaN in refracted ray: " 
-//     //               << refractedRay.x << ", " << refractedRay.y << ", " << refractedRay.z << std::endl;
-//     // }
-
-//     return refractedRay;
-// }
-
-
-// float fresnel(const glm::vec3& incidentRay, const glm::vec3& normal, float refractiveIndex) {
-//     float cosi = glm::dot(incidentRay, normal);
-//     float eta = refractiveIndex;
-//     if (cosi > 0) {
-//         eta = 1.0f / refractiveIndex;
-//     }
-
-//     float sintheta2 = eta * eta * (1.0f - cosi * cosi);
-//     if (sintheta2 > 1.0f) {
-//         // Total internal reflection
-//         return 1.0f;
-//     }
-
-//     float costheta = sqrt(1.0f - sintheta2);
-//     cosi = fabs(cosi);
-
-//     // Fresnel equation (Schlick's approximation)
-//     float r0 = (1.0f - eta) / (1.0f + eta);
-//     r0 = r0 * r0;
-//     return r0 + (1.0f - r0) * pow(1.0f - costheta, 5.0f);
-// }
-
-float fresnel(glm::vec3 &I, glm::vec3 &N){
-	const float ior = 1.5;
-    float cosi = glm::clamp(glm::dot(I, N),-1.0f, 1.0f);
-    float etai = 1, etat = ior;
-    if (cosi > 0) { std::swap(etai, etat); }
-    // Compute sini using Snell's law
-    float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi));
-    // Total internal reflection
-    if (sint >= 1) {
-		return 1;
-    }
-    else {
-        float cost = sqrtf(std::max(0.f, 1 - sint * sint));
-        cosi = fabsf(cosi);
-        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
-        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
-        return (Rs * Rs + Rp * Rp) / 2;
-    }
-    // As a consequence of the conservation of energy, the transmittance is given by:
-    // kt = 1 - kr;
-}
-
 Colour uint32ToColour(uint32_t color) {
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8) & 0xFF;
@@ -893,11 +757,11 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
-	int maxRedirects = 10;
+	int maxRedirects = 15;
 	redirectCount=redirectCount+1;
 
 	if (redirectCount>maxRedirects){ 
-		return {1, Colour (0,255,255)};
+		return {1, Colour (255,255,255)};
 		// return {1, intersectionDetails.intersectedTriangle.colour};
 	}
 
@@ -921,102 +785,48 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		oldColour = texture3D(intersectionDetails, texture);
 		redirectCount=maxRedirects;
 
-	//glass is looking goodish, but not perfect, think i need to find a way to handle rays being within the glass or not, probably just by passing a bool
-	//also get rid of the chat gpt code
-	// } else if (indexToFile[intersectionDetails.triangleIndex] == "glass") { // recursive call
-	// 	glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
-	// 	float reflectionCoefficient = 0.0f;
-	// 	float refrIndex = 1.5f;
-	// 	std::pair<float, Colour> refrPair;
-	// 	glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
-	// 	bool totalInternalReflection=false;
-
-	// 	// Calculate refracted and reflected rays
-	// 	glm::vec3 refractedRay = refractRay(rayDirection, normal, refrIndex);
-	// 	glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
-
-	// 	reflectionCoefficient = fresnel(rayDirection, normal);
-	// 	reflectionCoefficient = std::min(reflectionCoefficient + 0.3f, 1.0f);
-
-	// 	// Check for total internal reflection (zero refracted ray length)
-	// 	if (glm::length(refractedRay) == 0.0f) {  
-	// 		refractedRay = glm::vec3(0.0f); // No contribution from refraction
-	// 		reflectionCoefficient = 1.0f;  // Full reflection
-	// 		refrPair = std::make_pair(0.0f, Colour(0, 0, 0));  // Intensity 0 and black color
-	// 		totalInternalReflection = true;  // Mark that total internal reflection occurred
-	// 	} else {
-	// 		intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
-	// 		refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
-	// 	}
-
-	// 	//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
-	// 	reflectionCoefficient += 0.3f;
-	// 	if (reflectionCoefficient>1){reflectionCoefficient=1;}
-
-	// 	// Reflective ray shoot
-	// 	intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-	// 	auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
-
-	// 	// Calculate the final colors by combining reflection and refraction results
-	// 	Colour refrColour = Colour(refrPair.second.red * refrPair.first, refrPair.second.green * refrPair.first, refrPair.second.blue * refrPair.first);
-	// 	Colour reflColour = Colour(reflPair.second.red * reflPair.first, reflPair.second.green * reflPair.first, reflPair.second.blue * reflPair.first);
-
-	// 	if (totalInternalReflection == true){
-	// 		return {1, reflColour}; //refl or refr?
-	// 	}
-
-	// 	// Combine the colors based on the reflection coefficient
-	// 	Colour combinedColour = combineColours(reflectionCoefficient, refrColour, reflColour);
-
-	// 	// Set the intensity to 1 (or modify it if you want to factor in the reflection/refraction balance)
-	// 	intensity = 1.0f;
-
-	// 	return {intensity, combinedColour};
-
 	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
-		glm::vec3 normalVector = intersectionDetails.intersectedTriangle.normal;
-		glm::vec3 incidentVector = glm::normalize(rayDirection); // Normalize incident vector
+		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
+
+		//refractive indices, ri1 = air by default, ri2 = glass by default
+		float ri1 = 1.0f;
+		float ri2 = 1.4f;
 		
-		float air = 1.0f;
-		float glass = 1.4f;
-		
-		// Compute cosine of incident angle
-		float cosI = glm::dot(-incidentVector, normalVector);
+		//work out which side of the material the ray is
+		float cosI = glm::dot(-rayDirection, normal);
 		bool entering = cosI > 0;
 		
-		// Adjust normal and IoR based on whether entering or exiting
+		//swap refractive indices and relevant vectors
 		if (!entering) {
-			normalVector = -normalVector;
+			normal = -normal;
 			cosI = -cosI;
-			std::swap(air, glass);
+			std::swap(ri1, ri2);
 		}
 		
-		float eta = air / glass;
-		float k = 1.0f - eta * eta * (1.0f - cosI * cosI);
+		float riRatio = ri1 / ri2;
+		float k = 1.0f - riRatio * riRatio * (1.0f - cosI * cosI);
 		
 		glm::vec3 newDirection;
 		if (k < 0.0f) {
-			// Total internal reflection
-			newDirection = incidentVector - 2.0f * glm::dot(incidentVector, normalVector) * normalVector;
+			//total internal reflection
+			newDirection = rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal;
 		} else {
-			// Refraction using Snell's law
-			newDirection = eta * incidentVector + (eta * cosI - sqrt(k)) * normalVector;
+			//apply refraction with snella law
+			newDirection = riRatio * rayDirection + (riRatio * cosI - sqrt(k)) * normal;
 			newDirection = glm::normalize(newDirection);
 		}
 		
-		// Offset slightly along new direction to avoid self-intersection
-		glm::vec3 newOrigin = intersectionDetails.intersectionPoint + newDirection * 0.001f;
+		glm::vec3 intPoint = intersectionDetails.intersectionPoint + newDirection * 0.001f;
 		
-		intersectionDetails = getClosestIntersection(newDirection, triangles, newOrigin);
+		intersectionDetails = getClosestIntersection(newDirection, triangles, intPoint);
 		auto refrPair = shootRay(triangles, indexToFile, newDirection, lightSources, 
 								intersectionDetails, texture, normalMap1, normalMap2, 
 								normalMap3, normalMap4, redirectCount, skybox);
 		
 		return {refrPair.first, refrPair.second};
-		//code from
-		//https://github.com/jayden14141/RedNoise/blob/main/src/RedNoise.cpp
-		//reflection being caused again, could be an issue with using getClosestIntersection
+		//could add reflection with reflection coefficient
 
+	//did this long form to save time
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map1"){
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap1);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
@@ -1087,7 +897,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 	//initilise skybox object
 	Skybox skybox(backTexture, bottomTexture, frontTexture, leftTexture, rightTexture, topTexture);
 
-	std::cout<<"skybox loaded"<<std::endl;
+	// std::cout<<"skybox loaded"<<std::endl;
 
 	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
 	TextureMap normalMap1 = GDB_FILES ? TextureMap("../assets/normalMap1.ppm") : TextureMap("./assets/normalMap1.ppm");
@@ -1323,24 +1133,24 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
 
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
-	std::vector<ModelTriangle> trianglesBunny = OBJparser ("../assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
 		indexToFile[i] = "glass";
 		// indexToFile[i] = "cornell-box";
@@ -1370,28 +1180,24 @@ int main(int argc, char *argv[]) {
 
 	//hardcodes left wall to be normal map
 	indexToFile[8] = "normal-map1";
-	indexToFile[9] = "normal-map2";
+	indexToFile[9] = "normal-map1";
 
 	//first red box index = 12
 	//hardcodes each side of the red box to be a different normal mao
-	indexToFile [12] = "normal-map1";
-	indexToFile [17] = "normal-map1";
+	// indexToFile [12] = "mirror"; // top left
+	// indexToFile [17] = "mirror"; //top right
 
-	indexToFile [13] = "normal-map2";
-	indexToFile [16] = "normal-map2";
+	indexToFile [13] = "normal-map1"; //back
+	indexToFile [18] = "normal-map1"; //back
 
-	indexToFile [14] = "normal-map3";
-	indexToFile [17] = "normal-map3";
+	indexToFile [14] = "normal-map1"; //front
+	indexToFile [19] = "normal-map1"; //front
 
-	indexToFile [15] = "normal-map4";
-	indexToFile [18] = "normal-map4";
+	indexToFile [15] = "normal-map3"; //right
+	indexToFile [20] = "normal-map3"; //right
 
 
 
-	// hardcodes red box to be glass
-    // for (int i = 12; i <= 21; ++i) {
-    //     indexToFile[i] = "glass";
-    // }
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
@@ -1405,7 +1211,7 @@ int main(int argc, char *argv[]) {
 	
 
 	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-	std::vector<glm::vec3> lightSources = {glm::vec3(-0.8,0.8,0.8)};
+	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
 	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 
@@ -1495,39 +1301,6 @@ int main(int argc, char *argv[]) {
 				render(triangles, window, indexToFile, lightSources,0);
 				window.renderFrame();
 			}
-			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_x){
-				std::cout << "x down - spoin red box" << std::endl;
-				//replace these with the correct indices
-						// float topMiddleX1 = (triangles[1].vertices[0].x + triangles[1].vertices[1].x + triangles[1].vertices[2].x) / 3;
-						// float topMiddleY1 = (triangles[1].vertices[0].y + triangles[1].vertices[1].y + triangles[1].vertices[2].y) / 3;
-						// float topMiddleZ1 = (triangles[1].vertices[0].z + triangles[1].vertices[1].z + triangles[1].vertices[2].z) / 3;
-
-						// float topMiddleX2 = (triangles[6].vertices[0].x + triangles[6].vertices[1].x + triangles[6].vertices[2].x) / 3;
-						// float topMiddleY2 = (triangles[6].vertices[0].y + triangles[6].vertices[1].y + triangles[6].vertices[2].y) / 3;
-						// float topMiddleZ2 = (triangles[6].vertices[0].z + triangles[6].vertices[1].z + triangles[6].vertices[2].z) / 3;
-
-						// float topMiddleX = (topMiddleX1 + topMiddleX2)/2;
-						// float topMiddleY = (topMiddleY1 + topMiddleY2)/2;
-						// float topMiddleZ = (topMiddleZ1 + topMiddleZ2)/2;
-
-						// float botMiddleX1 = (triangles[5].vertices[0].x + triangles[5].vertices[1].x + triangles[5].vertices[2].x) / 3;
-						// float botMiddleY1 = (triangles[5].vertices[0].y + triangles[5].vertices[1].y + triangles[5].vertices[2].y) / 3;
-						// float botMiddleZ1 = (triangles[5].vertices[0].z + triangles[5].vertices[1].z + triangles[5].vertices[2].z) / 3;
-
-						// float botMiddleX2 = (triangles[10].vertices[0].x + triangles[10].vertices[1].x + triangles[10].vertices[2].x) / 3;
-						// float botMiddleY2 = (triangles[10].vertices[0].y + triangles[10].vertices[1].y + triangles[10].vertices[2].y) / 3;
-						// float botMiddleZ2 = (triangles[10].vertices[0].z + triangles[10].vertices[1].z + triangles[10].vertices[2].z) / 3;
-
-						// float botMiddleX = (botMiddleX1 + botMiddleX2)/2;
-						// float botMiddleY = (botMiddleY1 + botMiddleY2)/2;
-						// float botMiddleZ = (botMiddleZ1 + botMiddleZ2)/2;
-
-						// float centroidX = topMiddleX + botMiddleX/2;
-						// float centroidY = topMiddleY + botMiddleY/2;
-						// float centroidZ = topMiddleZ + botMiddleZ/2;
-				render(triangles, window, indexToFile, lightSources,0);
-				window.renderFrame();
-			}
 			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_j){
 			// 	std::cout << "j down - proximity lighting toggle" << std::endl;
 			// 	std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
@@ -1569,6 +1342,54 @@ int main(int argc, char *argv[]) {
 				std::cout<<"c down print location and orientation"<<std::endl;
 				printVec3(cameraPosition);
 				printMat3(cameraOrientation);
+
+			};
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_1){
+				std::cout<<"1 down - spin red box"<<std::endl;
+			
+				float angleToChange = convertDegrees(6);
+				for (int s=0; s<60; s++) {
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					float topMiddleX1 = (triangles[12].vertices[0].x + triangles[12].vertices[1].x + triangles[12].vertices[2].x) / 3;
+					float topMiddleY1 = (triangles[12].vertices[0].y + triangles[12].vertices[1].y + triangles[12].vertices[2].y) / 3;
+					float topMiddleZ1 = (triangles[12].vertices[0].z + triangles[12].vertices[1].z + triangles[12].vertices[2].z) / 3;
+
+					float topMiddleX2 = (triangles[17].vertices[0].x + triangles[17].vertices[1].x + triangles[17].vertices[2].x) / 3;
+					float topMiddleY2 = (triangles[17].vertices[0].y + triangles[17].vertices[1].y + triangles[17].vertices[2].y) / 3;
+					float topMiddleZ2 = (triangles[17].vertices[0].z + triangles[17].vertices[1].z + triangles[17].vertices[2].z) / 3;
+
+					float botMiddleX1 = (triangles[14].vertices[0].x + triangles[14].vertices[1].x + triangles[14].vertices[2].x) / 3;
+					float botMiddleY1 = (triangles[14].vertices[0].y + triangles[14].vertices[1].y + triangles[14].vertices[2].y) / 3;
+					float botMiddleZ1 = (triangles[14].vertices[0].z + triangles[14].vertices[1].z + triangles[14].vertices[2].z) / 3;
+
+					float botMiddleX2 = (triangles[16].vertices[0].x + triangles[16].vertices[1].x + triangles[16].vertices[2].x) / 3;
+					float botMiddleY2 = (triangles[16].vertices[0].y + triangles[16].vertices[1].y + triangles[16].vertices[2].y) / 3;
+					float botMiddleZ2 = (triangles[16].vertices[0].z + triangles[16].vertices[1].z + triangles[16].vertices[2].z) / 3;
+
+					float centroidX = (topMiddleX1 + topMiddleX2 + botMiddleX1 + botMiddleX2) / 4;
+					float centroidY = (topMiddleY1 + topMiddleY2 + botMiddleY1 + botMiddleY2) / 4;
+					float centroidZ = (topMiddleZ1 + topMiddleZ2 + botMiddleZ1 + botMiddleZ2) / 4;
+
+					for (int j = 12; j < 22; j++) {
+						for (int k = 0; k < 3; k++) {
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;
+
+							float rotatedX = x * cos(angleToChange) + z * sin(angleToChange);
+							float rotatedZ = -x * sin(angleToChange) + z * cos(angleToChange);
+
+							triangles[j].vertices[k].x = rotatedX + centroidX;
+							triangles[j].vertices[k].y = y + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
 
 			};
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_f){
