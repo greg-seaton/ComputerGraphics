@@ -33,7 +33,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 0;
+bool GDB_FILES = 1;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -897,7 +897,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 	redirectCount=redirectCount+1;
 
 	if (redirectCount>maxRedirects){ 
-		return {1, Colour (255,255,255)};
+		return {1, Colour (0,255,255)};
 		// return {1, intersectionDetails.intersectedTriangle.colour};
 	}
 
@@ -923,56 +923,99 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 
 	//glass is looking goodish, but not perfect, think i need to find a way to handle rays being within the glass or not, probably just by passing a bool
 	//also get rid of the chat gpt code
-	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") { // recursive call
-		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
-		float reflectionCoefficient = 0.0f;
-		float refrIndex = 1.5f;
-		std::pair<float, Colour> refrPair;
-		glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
-		bool totalInternalReflection=false;
+	// } else if (indexToFile[intersectionDetails.triangleIndex] == "glass") { // recursive call
+	// 	glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
+	// 	float reflectionCoefficient = 0.0f;
+	// 	float refrIndex = 1.5f;
+	// 	std::pair<float, Colour> refrPair;
+	// 	glm::vec3 intPoint = intersectionDetails.intersectionPoint + glm::vec3(0.01f);
+	// 	bool totalInternalReflection=false;
 
-		// Calculate refracted and reflected rays
-		glm::vec3 refractedRay = refractRay(rayDirection, normal, refrIndex);
-		glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+	// 	// Calculate refracted and reflected rays
+	// 	glm::vec3 refractedRay = refractRay(rayDirection, normal, refrIndex);
+	// 	glm::vec3 reflectedRay = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
 
-		reflectionCoefficient = fresnel(rayDirection, normal);
-		reflectionCoefficient = std::min(reflectionCoefficient + 0.3f, 1.0f);
+	// 	reflectionCoefficient = fresnel(rayDirection, normal);
+	// 	reflectionCoefficient = std::min(reflectionCoefficient + 0.3f, 1.0f);
 
-		// Check for total internal reflection (zero refracted ray length)
-		if (glm::length(refractedRay) == 0.0f) {  
-			refractedRay = glm::vec3(0.0f); // No contribution from refraction
-			reflectionCoefficient = 1.0f;  // Full reflection
-			refrPair = std::make_pair(0.0f, Colour(0, 0, 0));  // Intensity 0 and black color
-			totalInternalReflection = true;  // Mark that total internal reflection occurred
+	// 	// Check for total internal reflection (zero refracted ray length)
+	// 	if (glm::length(refractedRay) == 0.0f) {  
+	// 		refractedRay = glm::vec3(0.0f); // No contribution from refraction
+	// 		reflectionCoefficient = 1.0f;  // Full reflection
+	// 		refrPair = std::make_pair(0.0f, Colour(0, 0, 0));  // Intensity 0 and black color
+	// 		totalInternalReflection = true;  // Mark that total internal reflection occurred
+	// 	} else {
+	// 		intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
+	// 		refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
+	// 	}
+
+	// 	//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
+	// 	reflectionCoefficient += 0.3f;
+	// 	if (reflectionCoefficient>1){reflectionCoefficient=1;}
+
+	// 	// Reflective ray shoot
+	// 	intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
+	// 	auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
+
+	// 	// Calculate the final colors by combining reflection and refraction results
+	// 	Colour refrColour = Colour(refrPair.second.red * refrPair.first, refrPair.second.green * refrPair.first, refrPair.second.blue * refrPair.first);
+	// 	Colour reflColour = Colour(reflPair.second.red * reflPair.first, reflPair.second.green * reflPair.first, reflPair.second.blue * reflPair.first);
+
+	// 	if (totalInternalReflection == true){
+	// 		return {1, reflColour}; //refl or refr?
+	// 	}
+
+	// 	// Combine the colors based on the reflection coefficient
+	// 	Colour combinedColour = combineColours(reflectionCoefficient, refrColour, reflColour);
+
+	// 	// Set the intensity to 1 (or modify it if you want to factor in the reflection/refraction balance)
+	// 	intensity = 1.0f;
+
+	// 	return {intensity, combinedColour};
+
+	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
+		glm::vec3 normalVector = intersectionDetails.intersectedTriangle.normal;
+		glm::vec3 incidentVector = glm::normalize(rayDirection); // Normalize incident vector
+		
+		float air = 1.0f;
+		float glass = 1.4f;
+		
+		// Compute cosine of incident angle
+		float cosI = glm::dot(-incidentVector, normalVector);
+		bool entering = cosI > 0;
+		
+		// Adjust normal and IoR based on whether entering or exiting
+		if (!entering) {
+			normalVector = -normalVector;
+			cosI = -cosI;
+			std::swap(air, glass);
+		}
+		
+		float eta = air / glass;
+		float k = 1.0f - eta * eta * (1.0f - cosI * cosI);
+		
+		glm::vec3 newDirection;
+		if (k < 0.0f) {
+			// Total internal reflection
+			newDirection = incidentVector - 2.0f * glm::dot(incidentVector, normalVector) * normalVector;
 		} else {
-			intersectionDetails = getClosestIntersection(refractedRay, triangles, intPoint);
-			refrPair = shootRay(triangles, indexToFile, refractedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
+			// Refraction using Snell's law
+			newDirection = eta * incidentVector + (eta * cosI - sqrt(k)) * normalVector;
+			newDirection = glm::normalize(newDirection);
 		}
-
-		//hard coding the reflection coefficient, should make it inteligently scale it to enure some degree if transparency
-		reflectionCoefficient += 0.3f;
-		if (reflectionCoefficient>1){reflectionCoefficient=1;}
-
-		// Reflective ray shoot
-		intersectionDetails = getClosestIntersection(reflectedRay, triangles, intPoint);
-		auto reflPair = shootRay(triangles, indexToFile, reflectedRay, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount, skybox);
-
-		// Calculate the final colors by combining reflection and refraction results
-		Colour refrColour = Colour(refrPair.second.red * refrPair.first, refrPair.second.green * refrPair.first, refrPair.second.blue * refrPair.first);
-		Colour reflColour = Colour(reflPair.second.red * reflPair.first, reflPair.second.green * reflPair.first, reflPair.second.blue * reflPair.first);
-
-		if (totalInternalReflection == true){
-			return {1, reflColour}; //refl or refr?
-		}
-
-		// Combine the colors based on the reflection coefficient
-		Colour combinedColour = combineColours(reflectionCoefficient, refrColour, reflColour);
-
-		// Set the intensity to 1 (or modify it if you want to factor in the reflection/refraction balance)
-		intensity = 1.0f;
-
-		return {intensity, combinedColour};
-
+		
+		// Offset slightly along new direction to avoid self-intersection
+		glm::vec3 newOrigin = intersectionDetails.intersectionPoint + newDirection * 0.001f;
+		
+		intersectionDetails = getClosestIntersection(newDirection, triangles, newOrigin);
+		auto refrPair = shootRay(triangles, indexToFile, newDirection, lightSources, 
+								intersectionDetails, texture, normalMap1, normalMap2, 
+								normalMap3, normalMap4, redirectCount, skybox);
+		
+		return {refrPair.first, refrPair.second};
+		//code from
+		//https://github.com/jayden14141/RedNoise/blob/main/src/RedNoise.cpp
+		//reflection being caused again, could be an issue with using getClosestIntersection
 
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map1"){
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap1);
@@ -1280,26 +1323,28 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
 
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
-	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesBunny = OBJparser ("../assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
 		indexToFile[i] = "glass";
+		// indexToFile[i] = "cornell-box";
+
 	}
 	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
 
