@@ -28,13 +28,22 @@ glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
 renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
-bool USE_MIRROR = 0;
+// bool USE_MIRROR = 0;
+// bool METALIC_MIRROR = 0;
+// bool USE_TEXTURED_FLOOR = 0;
+// bool USE_SKYBOX = 0;
+// bool USE_NORMAL_MAP = 1;
+// bool GDB_FILES = 0;
+// bool USE_PHONG=0;
+
+bool USE_MIRROR = 1;
 bool METALIC_MIRROR = 0;
-bool USE_TEXTURED_FLOOR = 0;
-bool USE_SKYBOX = 0;
+bool USE_TEXTURED_FLOOR = 1;
+bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 0;
+bool GDB_FILES = 1;
 bool USE_PHONG=0;
+
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
@@ -1122,25 +1131,25 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
 
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
 	std::cout<<triangles.size()<<std::endl;
-	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesBunny = OBJparser ("../assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
 		// indexToFile[i] = "glass";
 		indexToFile[i] = "cornell-box";
@@ -1165,9 +1174,9 @@ int main(int argc, char *argv[]) {
 	indexToFile[6] = "textured-floor";
 	indexToFile[7] = "textured-floor";
 
-	for (int i=12; i<22;i++){
-		indexToFile[i] = "normal-map1";	
-	}
+	// for (int i=12; i<22;i++){
+	// 	indexToFile[i] = "normal-map1";	
+	// }
 
 	//hardcodes the top of the red box to be normal map
 	// indexToFile[12] = "normal-map";
@@ -1192,6 +1201,7 @@ int main(int argc, char *argv[]) {
 	indexToFile [15] = "normal-map2"; //right
 	indexToFile [20] = "normal-map2"; //right
 
+
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
 	bool orbit = 0;
@@ -1203,8 +1213,8 @@ int main(int argc, char *argv[]) {
 	//bl, br, fl, fr
 	
 
-	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
+	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
 	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 
@@ -1484,7 +1494,7 @@ int main(int argc, char *argv[]) {
 				}
 
 				//rasterise orbit
-				renderMode = RASTERISE;
+				// renderMode = RASTERISE;
 				for (int i=0; i<36; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
@@ -1541,6 +1551,10 @@ int main(int argc, char *argv[]) {
 				for (int i=144; i<436; i++){
 					indexToFile[i] = "glass";
 				}
+
+				//position light sources so normal map is visible
+				lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+
 
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
