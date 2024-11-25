@@ -30,8 +30,8 @@ renderType renderMode = WIREFRAME;
 std::array<bool, 3> lightingMode = {0,0,0};
 bool USE_MIRROR = 0;
 bool METALIC_MIRROR = 0;
-bool USE_TEXTURED_FLOOR = 1;
-bool USE_SKYBOX = 1;
+bool USE_TEXTURED_FLOOR = 0;
+bool USE_SKYBOX = 0;
 bool USE_NORMAL_MAP = 1;
 bool GDB_FILES = 0;
 //0-proximity, 1-aoi, 2-specular Lighting
@@ -838,21 +838,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap2);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 		vertexNormal = glm::normalize(vertexNormal);
-		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
-		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
-	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map3"){
-		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap3);
-		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
-		vertexNormal = glm::normalize(vertexNormal);
-		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
-		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
-	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map4"){
-		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap4);
-		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
-		vertexNormal = glm::normalize(vertexNormal);
-		intensity = genericShading(intersectionDetails, lightSources, triangles, -vertexNormal);
+		intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
 		oldColour = intersectionDetails.intersectedTriangle.colour;
 		redirectCount=maxRedirects;
 
@@ -1051,23 +1037,25 @@ int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::u
 	// std::cout<<"render completed"<<std::endl;
 }
 
-std::vector<glm::vec3> softShadowsLightSources (glm::vec3 lightSource, float radius, int n){
+std::vector<glm::vec3> softShadowsLightSources(glm::vec3 lightSource, float radius, int n) {
     std::vector<glm::vec3> lightSources;
 
-    for (int i = 0; i < n; i++) {
-		std::mt19937 generator(std::random_device{}());
-		std::normal_distribution<float> distribution(0, radius);
-		float xPos = distribution(generator);
-		float zPos = distribution(generator);
-		float yPos = distribution(generator);
+    int sideLength = std::sqrt(n);
+    if (sideLength < 1) sideLength = 1;
 
-		//gets rid of the possibility of extreme values
-		if (abs(xPos) > radius || abs(yPos) > radius || abs(zPos) > radius){
-			n++;
-			continue;
-		}
+    float step = (2.0f * radius) / (sideLength - 1);
 
-        lightSources.push_back(lightSource + glm::vec3(xPos, yPos, zPos));
+    for (int x = 0; x < sideLength; x++) {
+        for (int y = 0; y < sideLength; y++) {
+            float xPos = -radius + x * step;
+            float yPos = -radius + y * step;
+
+            lightSources.push_back(lightSource + glm::vec3(xPos, yPos, 0.0f));
+
+            if (lightSources.size() >= n) {
+                return lightSources;
+            }
+        }
     }
 
     return lightSources;
@@ -1150,16 +1138,18 @@ int main(int argc, char *argv[]) {
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
+	std::cout<<triangles.size()<<std::endl;
 	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
-		indexToFile[i] = "glass";
-		// indexToFile[i] = "cornell-box";
+		// indexToFile[i] = "glass";
+		indexToFile[i] = "cornell-box";
 
 	}
 	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
 
-
 	std::cout<<triangles.size()<<std::endl;
+
+
 
 
 	//blue box is indexes 22-31
@@ -1171,16 +1161,16 @@ int main(int argc, char *argv[]) {
 	}
 
 	//hardcodes the floor to be textured
-	indexToFile[6] = "textured-floor";
-	indexToFile[7] = "textured-floor";
+	// indexToFile[6] = "textured-floor";
+	// indexToFile[7] = "textured-floor";
 
 	//hardcodes the top of the red box to be normal map
 	// indexToFile[12] = "normal-map";
 	// indexToFile[17] = "normal-map";
 
-	//hardcodes left wall to be normal map
-	indexToFile[8] = "normal-map1";
-	indexToFile[9] = "normal-map1";
+	// //hardcodes left wall to be normal map
+	// indexToFile[8] = "normal-map1";
+	// indexToFile[9] = "normal-map1";
 
 	//first red box index = 12
 	//hardcodes each side of the red box to be a different normal mao
@@ -1192,25 +1182,13 @@ int main(int argc, char *argv[]) {
 	//right 15,20
 	
 
-	indexToFile [13] = "normal-map1"; //back
-	indexToFile [18] = "normal-map1"; //back
 
 	indexToFile [14] = "normal-map1"; //front
 	indexToFile [19] = "normal-map1"; //front
 
-	indexToFile [15] = "normal-map1"; //right
-	indexToFile [20] = "normal-map1"; //right
+	indexToFile [15] = "normal-map2"; //right
+	indexToFile [20] = "normal-map2"; //right
 
-	indexToFile [16] = "normal-map1"; //right
-	indexToFile [21] = "normal-map1"; //right
-
-	indexToFile [17] = "normal-map1"; //right
-	indexToFile [22] = "normal-map1"; //right
-
-
-    for (int i = 12; i <= 21; ++i) {
-        indexToFile[i] = "normal-map1";
-    }
 
 
 
@@ -1225,8 +1203,8 @@ int main(int argc, char *argv[]) {
 	//bl, br, fl, fr
 	
 
-	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+	std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
+	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
 	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 
@@ -1363,7 +1341,7 @@ int main(int argc, char *argv[]) {
 				std::cout<<"1 down - spin red box"<<std::endl;
 			
 				float angleToChange = convertDegrees(6);
-				for (int s=0; s<60; s++) {
+				for (int s=0; s<30; s++) {
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
@@ -1393,8 +1371,8 @@ int main(int argc, char *argv[]) {
 							float y = triangles[j].vertices[k].y - centroidY;
 							float z = triangles[j].vertices[k].z - centroidZ;
 
-							float rotatedX = x * cos(angleToChange) + z * sin(angleToChange);
-							float rotatedZ = -x * sin(angleToChange) + z * cos(angleToChange);
+							float rotatedX = x * cos(-angleToChange) + z * sin(-angleToChange);
+							float rotatedZ = -x * sin(-angleToChange) + z * cos(-angleToChange);
 
 							triangles[j].vertices[k].x = rotatedX + centroidX;
 							triangles[j].vertices[k].y = y + centroidY;
@@ -1491,6 +1469,73 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 				}
 			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_2){
+				std::cout << "z down - sequence" <<std::endl;
+				int frameNumber=0;
+
+				//wireframe orbit
+				renderMode = WIREFRAME;
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				//rasterise orbit
+				renderMode = RASTERISE;
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+				memset(DepthArray, 0, sizeof(DepthArray));
+
+				//ratrace orbit
+				renderMode = RAYTRACE;
+				// for (int i=0; i<36; i++){
+				// 	window.clearPixels();
+				// 	rotateAboutOrigin(convertDegrees(10));
+				// 	lookAt(glm::vec3 (0,0,0));
+				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				// }
+				window.clearPixels();
+
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				window.clearPixels();
+
+
+				// indexToFile [14] = "normal-map1"; //front
+				// indexToFile [19] = "normal-map1"; //front
+
+				// indexToFile [15] = "normal-map2"; //right
+				// indexToFile [20] = "normal-map2"; //right
+
+				indexToFile[6] = "textured-floor";
+				indexToFile[7] = "textured-floor";
+
+				indexToFile[26] = "mirror";
+				indexToFile[31] = "mirror";
+
+				USE_MIRROR=1;
+				USE_SKYBOX=1;
+				USE_TEXTURED_FLOOR=1;
+
+				for (int i=144; i<436; i++){
+					indexToFile[i] = "glass";
+				}
+
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				std::cout<<"end of sequence"<<std::endl;
+
+
+			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
 				// HOW TO SET UP SEQUENCE:
@@ -1542,7 +1587,7 @@ int main(int argc, char *argv[]) {
 
 				USE_SKYBOX=1;
 
-				moveSmoothly(cameraPosition, glm::vec3(0,1.4f,2.8f), cameraOrientation, glm::mat3(
+				moveSmoothly(cameraPosition, glm::vec3(0,1.1f,2.8f), cameraOrientation, glm::mat3(
 						1.0f, 0.0f, 0.0f, 
 						0.0f, 0.838671f, 0.544639f, 
 						0.0f, -0.544639f, 0.838671f
@@ -1569,9 +1614,6 @@ int main(int argc, char *argv[]) {
 				indexToFile[26] = "mirror";
 				indexToFile[31] = "mirror";
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-
-				indexToFile[8] = "normal-map";
-				indexToFile[9] = "normal-map";
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
 				window.clearPixels();
