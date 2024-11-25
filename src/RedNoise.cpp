@@ -20,8 +20,8 @@
 #include <unordered_map> //added for new obj parser
 
 #define pi 3.1415926535
-#define WIDTH 320*3
-#define HEIGHT 240*3
+#define WIDTH 320*2
+#define HEIGHT 240*2
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -34,12 +34,31 @@ bool USE_TEXTURED_FLOOR = 0;
 bool USE_SKYBOX = 0;
 bool USE_NORMAL_MAP = 1;
 bool GDB_FILES = 0;
+bool USE_PHONG=0;
 //0-proximity, 1-aoi, 2-specular Lighting
 
 uint32_t convertColour(const Colour& colour) {
     return (static_cast<uint32_t>(colour.red) << 16) | 
            (static_cast<uint32_t>(colour.green) << 8) | 
            (static_cast<uint32_t>(colour.blue));
+}
+
+void printVec3(const glm::vec3& vec) {
+    std::cout << "Vec3: (" 
+              << vec.x << ", " 
+              << vec.y << ", " 
+              << vec.z << ")" << std::endl;
+}
+
+void printMat3(const glm::mat3& mat) {
+    std::cout << "Mat4:" << std::endl;
+    for (int i = 0; i < 3; ++i) {
+        std::cout << "(";
+        for (int j = 0; j < 3; ++j) {
+            std::cout << mat[i][j] << " ";
+        }
+        std::cout << ")" << std::endl;
+    }
 }
 
 std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> MTLparser (std::string fileLocation){
@@ -493,10 +512,6 @@ std::vector<float> computeBarycentricPoints(glm::vec3 p, ModelTriangle triangle)
 }
 
 float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource, std::vector<ModelTriangle> &triangles){
-		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
-			return 0.2;
-		}
-
 		std::array<float, 3> vertexIntensities;
 		for (int i =0; i<3; i++){
 			glm::vec3 Vertex = intersectionDetails.intersectedTriangle.vertices[i];
@@ -776,7 +791,11 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		redirectCount=maxRedirects;
 		
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
-		intensity = phong(intersectionDetails, lightSources, triangles, 1);
+		if (USE_PHONG){
+			intensity = phong(intersectionDetails, lightSources, triangles, 1);
+		} else{
+			intensity = gouraud(intersectionDetails, lightSources[0], triangles);
+		}
 		oldColour = intersectionDetails.intersectedTriangle.colour;
 		redirectCount=maxRedirects;
 
@@ -1096,24 +1115,6 @@ std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_ma
     }
 }
 
-void printVec3(const glm::vec3& vec) {
-    std::cout << "Vec3: (" 
-              << vec.x << ", " 
-              << vec.y << ", " 
-              << vec.z << ")" << std::endl;
-}
-
-void printMat3(const glm::mat3& mat) {
-    std::cout << "Mat4:" << std::endl;
-    for (int i = 0; i < 3; ++i) {
-        std::cout << "(";
-        for (int j = 0; j < 3; ++j) {
-            std::cout << mat[i][j] << " ";
-        }
-        std::cout << ")" << std::endl;
-    }
-}
-
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -1161,8 +1162,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	//hardcodes the floor to be textured
-	// indexToFile[6] = "textured-floor";
-	// indexToFile[7] = "textured-floor";
+	indexToFile[6] = "textured-floor";
+	indexToFile[7] = "textured-floor";
+
+	for (int i=12; i<22;i++){
+		indexToFile[i] = "normal-map1";	
+	}
 
 	//hardcodes the top of the red box to be normal map
 	// indexToFile[12] = "normal-map";
@@ -1181,16 +1186,11 @@ int main(int argc, char *argv[]) {
 	//front 14,19
 	//right 15,20
 	
-
-
 	indexToFile [14] = "normal-map1"; //front
 	indexToFile [19] = "normal-map1"; //front
 
 	indexToFile [15] = "normal-map2"; //right
 	indexToFile [20] = "normal-map2"; //right
-
-
-
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
 	cameraPosition = startingCamera;	
@@ -1507,12 +1507,26 @@ int main(int argc, char *argv[]) {
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				window.clearPixels();
 
+				moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
 
-				// indexToFile [14] = "normal-map1"; //front
-				// indexToFile [19] = "normal-map1"; //front
+				USE_PHONG=1;
 
-				// indexToFile [15] = "normal-map2"; //right
-				// indexToFile [20] = "normal-map2"; //right
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				//move the light around
+				//move the sphere around
+
+				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				indexToFile [14] = "normal-map1"; //front
+				indexToFile [19] = "normal-map1"; //front
+
+				indexToFile [15] = "normal-map2"; //right
+				indexToFile [20] = "normal-map2"; //right
 
 				indexToFile[6] = "textured-floor";
 				indexToFile[7] = "textured-floor";
