@@ -26,7 +26,7 @@ float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
 enum renderType{WIREFRAME, RASTERISE, RAYTRACE};
-renderType renderMode = WIREFRAME;
+renderType renderMode = RASTERISE;
 std::array<bool, 3> lightingMode = {0,0,0};
 // bool USE_MIRROR = 0;
 // bool METALIC_MIRROR = 0;
@@ -346,6 +346,9 @@ void sortByY(std::vector<CanvasPoint>& points) {
 //cant handle negative values!!
 
 std::vector<CanvasPoint> lineValuesWithDepth(CanvasPoint from, CanvasPoint to){
+	if (std::isnan(from.depth) || std::isnan(to.depth)){
+		std::cout<<"nan"<<std::endl;
+	}
 
 	if (!from.depth || !to.depth){
 		from.depth = 0;
@@ -377,21 +380,20 @@ std::vector<CanvasPoint> lineValuesWithDepth(CanvasPoint from, CanvasPoint to){
 	return result;
 }
 
-std::vector<CanvasPoint> removeDupilcateYs(std::vector<CanvasPoint> line) {
+std::vector<CanvasPoint> removeDuplicateYs(const std::vector<CanvasPoint>& line) {
     std::vector<CanvasPoint> result;
-	 //takes LHS or RHS
+    int lastYValue = std::numeric_limits<int>::min();
 
-	int lastYValue;
-	for (CanvasPoint point: line){
-		if (round(point.y)==round(lastYValue)){
-			continue;
-		} else{
-			result.push_back(point);
-			lastYValue = round(point.y);
-		}
-	}
-	return result;
+    for (const CanvasPoint& point : line) {
+        int currentY = round(point.y);
+        if (currentY != lastYValue) {
+            result.push_back(point);
+            lastYValue = currentY;
+        }
+    }
+    return result;
 }
+
 
 //to solve this depth issue thing, can consider doing it the other way round, where depth array is initiliased to int max
 //might my stupid and not work, just a thought
@@ -450,17 +452,21 @@ void filledTriangle (CanvasTriangle triangle, Colour colour, DrawingWindow &wind
 	LHS = (pixels[1].x < pixels[2].x) ? sideMinor : sideMajor;
 	RHS = (pixels[1].x < pixels[2].x) ? sideMajor : sideMinor;
 
-	std::vector<CanvasPoint> LHSpre = LHS;
-	std::vector<CanvasPoint> RHSpre = RHS ;	
+	// std::vector<CanvasPoint> LHSpre = LHS;
+	// std::vector<CanvasPoint> RHSpre = RHS;	
 
-	LHS = removeDupilcateYs (LHS);
-	RHS = removeDupilcateYs (RHS);
+	LHS = removeDuplicateYs (LHS);
+	RHS = removeDuplicateYs (RHS);
 
 	size_t yDist=pixels[2].y - pixels[0].y;
 
 	for (size_t y=0; y<=yDist; y++){
-		//this stops it from trying to draw a line between two point that are the same
+		if (y >= LHS.size() || y >= RHS.size()) {
+			// std::cerr << "Index out of bounds: y = " << y << ", LHS.size() = " << LHS.size() << ", RHS.size() = " << RHS.size() << "\n";
+			continue;
+		}
 		if (!(LHS[y].y == RHS[y].y)){
+			std::cout<<"do they have depth: "<<LHS[y].depth<<std::endl;
 			continue;
 		}
 
@@ -536,7 +542,7 @@ float gouraud(RayTriangleIntersection intersectionDetails, glm::vec3 lightSource
 			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
 			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
 
-			vertexIntensities[i] = 0.2+(2*intensityP*intensityA)+intensityS;
+			vertexIntensities[i] = 0.2+(2*intensityP*intensityA)+(intensityS*intensityA);
 			if (vertexIntensities[i]>1) vertexIntensities[i]=1;
 		}
 
@@ -563,8 +569,8 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 
 	float intensity = 0;
 	for (glm::vec3 lightSource:lightSources){
-		float intensityP = proximityLighting(Vertex, lightSource, 5);
-		float intensityA = 2*aoiLighting(Vertex, lightSource, vertexNormal, 10);
+		float intensityP = 1.3*proximityLighting(Vertex, lightSource, 5);
+		float intensityA = 2.5*aoiLighting(Vertex, lightSource, vertexNormal, 10);
 		float intensityS = 2*specularLighting(Vertex, lightSource, vertexNormal, viewVector, 256);
 
 		intensityP = glm::clamp(intensityP, 0.0f, 1.0f);
@@ -634,20 +640,17 @@ float genericShading(RayTriangleIntersection intersectionDetails, std::vector<gl
 }
 
 glm::vec3 randomlyChange(glm::vec3 normal, float strength){
-    std::random_device rd;
-    std::mt19937 gen(rd());
-	std::normal_distribution<> Ndist(0.0, 0.005);
-    for (int i=0; i<3; i++){
-		float rand = Ndist(gen);
-		normal[i] = normal[i]+(rand*strength);
-	}
-	return normal;
+	//essentially sets a seed
+    std::mt19937 gen(5);
+    std::normal_distribution<> Ndist(0.0, 0.005);
+    for (int i = 0; i < 3; i++) {
+        float rand = Ndist(gen);
+        normal[i] = normal[i] + (rand * strength);
+    }
+    return normal;
 }
 
 Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &texture){
-	// if (USE_TEXTURED_FLOOR==0){
-	// 	return intersectionDetails.intersectedTriangle.colour;
-	// }
 	std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint,intersectionDetails.intersectedTriangle);
 
 	float u = barycentrics[1]*intersectionDetails.intersectedTriangle.texturePoints[0].x+
@@ -854,7 +857,27 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		return {refrPair.first, refrPair.second};
 		//could add reflection with reflection coefficient
 
-	//did this long form to save time
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="metallic"){ //recursive call
+		glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
+
+		//scramble the normals
+		normal = randomlyChange(intersectionDetails.intersectedTriangle.normal,1);
+		rayDirection = glm::normalize(rayDirection - 2.0f * glm::dot(rayDirection, normal) * normal);
+
+		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
+		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount,skybox);
+
+		intensity = bounced.first;
+		oldColour = bounced.second;
+
+		//simulate glossiness
+		float glossiness = 0.8f;
+		float reflectionStrength = pow(glm::dot(rayDirection, normal), glossiness);
+		intensity *= reflectionStrength;
+
+		oldColour.blue = 0;
+	
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map1"){
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap1);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
@@ -1153,9 +1176,15 @@ int main(int argc, char *argv[]) {
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
 		// indexToFile[i] = "glass";
 		indexToFile[i] = "cornell-box";
-
 	}
 	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
+
+	std::vector<ModelTriangle> trianglesMB = OBJparser ("../assets/metallic-box.obj", colours, 0.15, glm::vec3(-0.6,-0.57,0.4));
+	for (int i=triangles.size(); i<triangles.size()+trianglesMB.size(); i++){
+		indexToFile[i] = "metallic";
+	}
+
+	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
 
 	std::cout<<triangles.size()<<std::endl;
 
@@ -1314,10 +1343,10 @@ int main(int argc, char *argv[]) {
 			// 	std::cout <<lightingMode[0]<<lightingMode[1]<<lightingMode[2]<<std::endl;
 			// 	lightingMode[1] = abs(lightingMode[1]-1);
 			// }
-			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
-			// 	render(triangles, window, indexToFile, lightSources,0);
-			// 	window.renderFrame();
-			// }
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r){
+				render(triangles, window, indexToFile, lightSources,0);
+				window.renderFrame();
+			}
 			// if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_l){
 			// 	std::cout<<"l down - switch lightsource"<<std::endl;
 			// 	if (lightSources.size()>1){
@@ -1494,7 +1523,7 @@ int main(int argc, char *argv[]) {
 				}
 
 				//rasterise orbit
-				// renderMode = RASTERISE;
+				renderMode = RASTERISE;
 				for (int i=0; i<36; i++){
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
@@ -1503,6 +1532,10 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 				memset(DepthArray, 0, sizeof(DepthArray));
+
+				// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
+				// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+				std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 				//ratrace orbit
 				renderMode = RAYTRACE;
@@ -1517,15 +1550,33 @@ int main(int argc, char *argv[]) {
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				window.clearPixels();
 
+				//move over to the sphere
 				moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
 				5, triangles, window, indexToFile, lightSources, frameNumber);
 
 				USE_PHONG=1;
 
+				for (int i=144; i<436; i++){
+					indexToFile[i] = "sphere";
+				}
+
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
 				//move the light around
 				//move the sphere around
+				for (int i=0; i<5; i++){
+					lightSources[0].x += 0.1;
+					lightSources[0].z += 0.1;
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				}
+				for (int i=0; i<5; i++){
+					lightSources[0].x -= 0.1;
+					lightSources[0].z -= 0.1;
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				}
+
 
 				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
 				5, triangles, window, indexToFile, lightSources, frameNumber);

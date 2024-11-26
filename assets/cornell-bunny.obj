@@ -2,7 +2,7 @@
 # www.blender.org
 mtllib cornell-box.mtl
 o Bunny-LowPoly
-usemtl Red
+usemtl PastelGreen
 v 0.882061 -0.698611 0.869866
 v 1.051391 -0.644390 0.890678
 v 0.954980 -0.706790 0.793363
