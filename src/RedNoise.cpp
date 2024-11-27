@@ -19,6 +19,9 @@
 #include <cstring>  // included for memset, used to reset depthArray
 #include <unordered_map> //added for new obj parser
 
+#include <glm/gtc/quaternion.hpp> //new movesmoothly
+#include <glm/gtx/quaternion.hpp> //new movesmoothly
+
 #define pi 3.1415926535
 #define WIDTH 320*2
 #define HEIGHT 240*2
@@ -569,7 +572,7 @@ float phong(RayTriangleIntersection intersectionDetails, std::vector<glm::vec3> 
 
 	float intensity = 0;
 	for (glm::vec3 lightSource:lightSources){
-		float intensityP = 1.3*proximityLighting(Vertex, lightSource, 5);
+		float intensityP = 0.7*proximityLighting(Vertex, lightSource, 5);
 		float intensityA = 2.5*aoiLighting(Vertex, lightSource, vertexNormal, 10);
 		float intensityS = 2*specularLighting(Vertex, lightSource, vertexNormal, viewVector, 256);
 
@@ -598,10 +601,11 @@ float genericShadingMLS(RayTriangleIntersection intersectionDetails, std::vector
 	for (glm::vec3 lightSource:lightSources){
 		if (findIntersectionBetweenTwoPoints(intersectionDetails.intersectionPoint, lightSource, triangles)){
 			intensity = intensity + ambientIntensity;
+
 		}
 		else{
-			float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
-			float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
+			float intensityP = 1.4*proximityLighting(Vertex, lightSource, 5);
+			float intensityA = 1.5*aoiLighting(Vertex, lightSource, VertexNormal, 10);
 			float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
             intensity += (intensityP * intensityA) + intensityS + (ambientIntensity);
 		}
@@ -628,8 +632,8 @@ float genericShading(RayTriangleIntersection intersectionDetails, std::vector<gl
 		intensity = 0.2;
 	}
 	else{
-		float intensityP = 2.5*proximityLighting(Vertex, lightSource, 5);
-		float intensityA = aoiLighting(Vertex, lightSource, VertexNormal, 10);
+		float intensityP = 1.4*proximityLighting(Vertex, lightSource, 5);
+		float intensityA = 1.5*aoiLighting(Vertex, lightSource, VertexNormal, 10);
 		float intensityS = specularLighting(Vertex, lightSource, VertexNormal, viewVector, 256);
 		intensity = 0.2+(intensityP*intensityA)+intensityS;
 	}
@@ -641,8 +645,8 @@ float genericShading(RayTriangleIntersection intersectionDetails, std::vector<gl
 
 glm::vec3 randomlyChange(glm::vec3 normal, float strength){
 	//essentially sets a seed
-    std::mt19937 gen(5);
-    std::normal_distribution<> Ndist(0.0, 0.005);
+    std::mt19937 gen(999);
+    std::normal_distribution<> Ndist(0.0, 0.05);
     for (int i = 0; i < 3; i++) {
         float rand = Ndist(gen);
         normal[i] = normal[i] + (rand * strength);
@@ -675,13 +679,22 @@ Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &textur
 }
 
 class Skybox {
-public:
-    Skybox(TextureMap& backTexture, TextureMap& bottomTexture,
-           TextureMap& frontTexture, TextureMap& leftTexture, TextureMap& rightTexture, 
-           TextureMap& topTexture)
-        : backTexture(backTexture), bottomTexture(bottomTexture),
-          frontTexture(frontTexture), leftTexture(leftTexture), rightTexture(rightTexture), 
-          topTexture(topTexture) {}
+	private:
+		TextureMap backTexture;
+		TextureMap bottomTexture;
+		TextureMap frontTexture;
+		TextureMap leftTexture;
+		TextureMap rightTexture;
+		TextureMap topTexture;
+
+	public:
+		Skybox(TextureMap& backTexture, TextureMap& bottomTexture,
+			TextureMap& frontTexture, TextureMap& leftTexture, TextureMap& rightTexture, 
+			TextureMap& topTexture)
+			: backTexture(backTexture), bottomTexture(bottomTexture),
+			frontTexture(frontTexture), leftTexture(leftTexture), rightTexture(rightTexture), 
+			topTexture(topTexture) {}
+
 
     uint32_t getSkyboxPixel(glm::vec3 rayDirection) {
         int u = 0;
@@ -743,14 +756,6 @@ public:
             return 0;
         }
     }
-
-private:
-    TextureMap backTexture;
-    TextureMap bottomTexture;
-    TextureMap frontTexture;
-    TextureMap leftTexture;
-    TextureMap rightTexture;
-    TextureMap topTexture;
 };
 
 glm::vec3 convertToNormalVector(Colour colour) {
@@ -800,7 +805,6 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 	if (indexToFile[intersectionDetails.triangleIndex]=="cornell-box"){
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
 		
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="sphere"){
 		if (USE_PHONG){
@@ -809,12 +813,10 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 			intensity = gouraud(intersectionDetails, lightSources[0], triangles);
 		}
 		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
 
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = texture3D(intersectionDetails, texture);
-		redirectCount=maxRedirects;
 
 	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
 		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
@@ -884,14 +886,14 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		vertexNormal = glm::normalize(vertexNormal);
 		intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
 		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
+		// redirectCount=maxRedirects;
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="normal-map2"){
 		Colour vertexNormalAsColour = texture3D(intersectionDetails, normalMap2);
 		glm::vec3 vertexNormal = convertToNormalVector(vertexNormalAsColour);
 		vertexNormal = glm::normalize(vertexNormal);
 		intensity = genericShading(intersectionDetails, lightSources, triangles, vertexNormal);
 		oldColour = intersectionDetails.intersectedTriangle.colour;
-		redirectCount=maxRedirects;
+		// redirectCount=maxRedirects;
 
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="mirror"){ //recursive call
 		glm::vec3 normal =intersectionDetails.intersectedTriangle.normal;
@@ -1036,14 +1038,14 @@ void drawWireframe(std::vector<ModelTriangle> &triangles,  DrawingWindow &window
 }
 
 //pan functions multiply cameraOrientation by rotationMatrix, for radians t
-void pan(float t){
-	glm::mat3 XrotationMatrix ({cos(t),0,-sin(t)},{0,1,0},{sin(t),0,cos(t)});
-	cameraOrientation=cameraOrientation*XrotationMatrix;
+void pan(float t) {
+    glm::mat3 YrotationMatrix({{cos(t), 0, sin(t)},{0, 1, 0},{-sin(t), 0, cos(t)}});
+    cameraOrientation = cameraOrientation * YrotationMatrix;
 }
 
-void tilt(float t){
-	glm::mat3 YrotationMatrix ({1,0,0},{0,cos(t),sin(t)},{0,-sin(t),cos(t)});
-	cameraOrientation=cameraOrientation*YrotationMatrix;
+void tilt(float t) {
+    glm::mat3 XrotationMatrix({{1, 0, 0},{0, cos(t), sin(t)},{0, -sin(t), cos(t)}});
+    cameraOrientation = cameraOrientation * XrotationMatrix;
 }
 
 void rotateAboutOrigin (float d){
@@ -1112,6 +1114,42 @@ std::vector<glm::vec3> softShadowsLightSources(glm::vec3 lightSource, float radi
     return lightSources;
 }
 
+// void moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
+//                   std::vector<ModelTriangle> &triangles, DrawingWindow &window,
+//                   std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
+//     cameraPosition = from;
+//     cameraOrientation = startingOrientation;
+
+//     for (int step = 0; step <= numberSteps; ++step) {
+//         window.clearPixels();
+//         memset(DepthArray, 0, sizeof(DepthArray));
+
+//         // Interpolate position
+//         float t = float(step) / float(numberSteps);
+//         cameraPosition = glm::vec3(
+//             glm::mix(from.x, to.x, t),
+//             glm::mix(from.y, to.y, t),
+//             glm::mix(from.z, to.z, t)
+//         );
+
+//         // Interpolate orientation matrix
+//         glm::mat3 interpolatedOrientation = glm::mat3(
+//             glm::mix(startingOrientation[0], endingOrientation[0], t),
+//             glm::mix(startingOrientation[1], endingOrientation[1], t),
+//             glm::mix(startingOrientation[2], endingOrientation[2], t)
+//         );
+
+//         // Re-orthonormalize the orientation matrix
+//         glm::vec3 x = glm::normalize(interpolatedOrientation[0]); // Normalize the first column
+//         glm::vec3 z = glm::normalize(glm::cross(x, interpolatedOrientation[1])); // Ensure perpendicular to x
+//         glm::vec3 y = glm::cross(z, x); // Ensure perpendicular to both x and z
+
+//         cameraOrientation = glm::mat3(x, y, z);
+
+//         frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+//     }
+// }
+
 void moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
 std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
 
@@ -1147,6 +1185,8 @@ std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_ma
     }
 }
 
+
+
 int main(int argc, char *argv[]) {
 	DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 	SDL_Event event;
@@ -1165,7 +1205,7 @@ int main(int argc, char *argv[]) {
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0.1,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
@@ -1178,10 +1218,11 @@ int main(int argc, char *argv[]) {
 		indexToFile[i] = "cornell-box";
 	}
 	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
+	std::cout<<triangles.size()<<std::endl;
 
 	std::vector<ModelTriangle> trianglesMB = OBJparser ("../assets/metallic-box.obj", colours, 0.15, glm::vec3(-0.6,-0.57,0.4));
 	for (int i=triangles.size(); i<triangles.size()+trianglesMB.size(); i++){
-		indexToFile[i] = "metallic";
+		indexToFile[i] = "cornell-box";
 	}
 
 	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
@@ -1200,8 +1241,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	//hardcodes the floor to be textured
-	indexToFile[6] = "textured-floor";
-	indexToFile[7] = "textured-floor";
+	// indexToFile[6] = "textured-floor";
+	// indexToFile[7] = "textured-floor";
 
 	// for (int i=12; i<22;i++){
 	// 	indexToFile[i] = "normal-map1";	
@@ -1224,11 +1265,11 @@ int main(int argc, char *argv[]) {
 	//front 14,19
 	//right 15,20
 	
-	indexToFile [14] = "normal-map1"; //front
-	indexToFile [19] = "normal-map1"; //front
+	// indexToFile [14] = "normal-map1"; //front
+	// indexToFile [19] = "normal-map1"; //front
 
-	indexToFile [15] = "normal-map2"; //right
-	indexToFile [20] = "normal-map2"; //right
+	// indexToFile [15] = "normal-map2"; //right
+	// indexToFile [20] = "normal-map2"; //right
 
 
 	glm::vec3 startingCamera (0.0, 0.0, 4.0);
@@ -1535,7 +1576,7 @@ int main(int argc, char *argv[]) {
 
 				// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
 				// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
-				std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
+				lightSources = {glm::vec3(0,0.8,0)};
 
 				//ratrace orbit
 				renderMode = RAYTRACE;
@@ -1550,9 +1591,54 @@ int main(int argc, char *argv[]) {
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				window.clearPixels();
 
+				//rotate red box
+				float angleToChange = convertDegrees(6);
+				for (int s=0; s<13; s++) {
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					float topMiddleX1 = (triangles[12].vertices[0].x + triangles[12].vertices[1].x + triangles[12].vertices[2].x) / 3;
+					float topMiddleY1 = (triangles[12].vertices[0].y + triangles[12].vertices[1].y + triangles[12].vertices[2].y) / 3;
+					float topMiddleZ1 = (triangles[12].vertices[0].z + triangles[12].vertices[1].z + triangles[12].vertices[2].z) / 3;
+
+					float topMiddleX2 = (triangles[17].vertices[0].x + triangles[17].vertices[1].x + triangles[17].vertices[2].x) / 3;
+					float topMiddleY2 = (triangles[17].vertices[0].y + triangles[17].vertices[1].y + triangles[17].vertices[2].y) / 3;
+					float topMiddleZ2 = (triangles[17].vertices[0].z + triangles[17].vertices[1].z + triangles[17].vertices[2].z) / 3;
+
+					float botMiddleX1 = (triangles[14].vertices[0].x + triangles[14].vertices[1].x + triangles[14].vertices[2].x) / 3;
+					float botMiddleY1 = (triangles[14].vertices[0].y + triangles[14].vertices[1].y + triangles[14].vertices[2].y) / 3;
+					float botMiddleZ1 = (triangles[14].vertices[0].z + triangles[14].vertices[1].z + triangles[14].vertices[2].z) / 3;
+
+					float botMiddleX2 = (triangles[16].vertices[0].x + triangles[16].vertices[1].x + triangles[16].vertices[2].x) / 3;
+					float botMiddleY2 = (triangles[16].vertices[0].y + triangles[16].vertices[1].y + triangles[16].vertices[2].y) / 3;
+					float botMiddleZ2 = (triangles[16].vertices[0].z + triangles[16].vertices[1].z + triangles[16].vertices[2].z) / 3;
+
+					float centroidX = (topMiddleX1 + topMiddleX2 + botMiddleX1 + botMiddleX2) / 4;
+					float centroidY = (topMiddleY1 + topMiddleY2 + botMiddleY1 + botMiddleY2) / 4;
+					float centroidZ = (topMiddleZ1 + topMiddleZ2 + botMiddleZ1 + botMiddleZ2) / 4;
+
+					for (int j = 12; j < 22; j++) {
+						for (int k = 0; k < 3; k++) {
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;
+
+							float rotatedX = x * cos(-angleToChange) + z * sin(-angleToChange);
+							float rotatedZ = -x * sin(-angleToChange) + z * cos(-angleToChange);
+
+							triangles[j].vertices[k].x = rotatedX + centroidX;
+							triangles[j].vertices[k].y = y + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+				}
+
 				//move over to the sphere
-				moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
-				5, triangles, window, indexToFile, lightSources, frameNumber);
+				// moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
+				// 5, triangles, window, indexToFile, lightSources, frameNumber);
 
 				USE_PHONG=1;
 
@@ -1577,23 +1663,29 @@ int main(int argc, char *argv[]) {
 
 				}
 
-
-				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
-				5, triangles, window, indexToFile, lightSources, frameNumber);
+				//move back to origin
+				// moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				// 5, triangles, window, indexToFile, lightSources, frameNumber);
 
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-				indexToFile [14] = "normal-map1"; //front
-				indexToFile [19] = "normal-map1"; //front
+				//turn all the interesting stuff on
 
-				indexToFile [15] = "normal-map2"; //right
-				indexToFile [20] = "normal-map2"; //right
+				// indexToFile [14] = "normal-map1"; //front
+				// indexToFile [19] = "normal-map1"; //front
+
+				indexToFile [15] = "normal-map1"; //right
+				indexToFile [20] = "normal-map1"; //right
 
 				indexToFile[6] = "textured-floor";
 				indexToFile[7] = "textured-floor";
 
 				indexToFile[26] = "mirror";
 				indexToFile[31] = "mirror";
+
+				for (int i=436; i<446; i++){
+					indexToFile[i] = "metallic";
+				}
 
 				USE_MIRROR=1;
 				USE_SKYBOX=1;
@@ -1603,16 +1695,124 @@ int main(int argc, char *argv[]) {
 					indexToFile[i] = "glass";
 				}
 
-				//position light sources so normal map is visible
+				lightSources = {glm::vec3(0,0.8,0), glm::vec3(0,0.8,0), glm::vec3(0,0.8,0)};
+
+				glm::vec3 startLight1(0, 0.8, 0);
+				glm::vec3 startLight2(0, 0.8, 0);
+				glm::vec3 startLight3(0, 0.8, 0);
+
+				glm::vec3 endLight1(0, 0.25, 0.9);
+				glm::vec3 endLight2(0.9, 0.25, 0.9);
+				glm::vec3 endLight3(-0.9, 0.25, 0.9);
+
+				int totalFrames = 5;
+				for (int i = 0; i <= totalFrames; i++) {
+					float t = float(i) / float(totalFrames);
+
+					lightSources[0] = glm::mix(startLight1, endLight1, t);
+					lightSources[1] = glm::mix(startLight2, endLight2, t);
+					lightSources[2] = glm::mix(startLight3, endLight3, t);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
 				lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
 
-
+				//move to red box viewing position
+				// moveSmoothly(cameraPosition, glm::vec3(0, -0.1, 2.7), cameraOrientation, glm::mat3 (0.996514, 0.0337827, -0.0762819, 
+				// -0.0195689, 0.983488, 0.179914, 
+				// 0.0811003, -0.177794, 0.98072),
+				// 5, triangles, window, indexToFile, lightSources, frameNumber);
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
+				startLight1=glm::vec3(0, 0.25, 0.9);
+				startLight2=glm::vec3(0.9, 0.25, 0.9);
+				startLight3=glm::vec3(-0.9, 0.25, 0.9);
+
+				endLight1=glm::vec3(-0.9, 0.8, 0.9);
+				endLight2=glm::vec3(0.9, 0.8, 0.9);
+				endLight3=glm::vec3(0, 0.8, 0.9);
+
+				totalFrames = 5;
+				for (int i = 0; i <= totalFrames; i++) {
+					float t = float(i) / float(totalFrames);
+
+					lightSources[0] = glm::mix(startLight1, endLight1, t);
+					lightSources[1] = glm::mix(startLight2, endLight2, t);
+					lightSources[2] = glm::mix(startLight3, endLight3, t);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				//back to origin
+				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				//fly though to the other side
+				//intermediate step
+				moveSmoothly(cameraPosition, glm::vec3(0,0,0), cameraOrientation, glm::mat3 (0,0,-1,0,1,0,1,0,0),
+				13, triangles, window, indexToFile, lightSources, frameNumber);
+
+				moveSmoothly(cameraPosition, glm::vec3(0,0,-4), cameraOrientation, glm::mat3 (-1,0,0,0,1,0,0,0,-1),
+				13, triangles, window, indexToFile, lightSources, frameNumber);
+
+				moveSmoothly(cameraPosition, glm::vec3(0,1.4,2.9), cameraOrientation, cameraOrientation,
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				//make gold box do a backflip
+
+				//show off soft shadows and fly through
 
 				std::cout<<"end of sequence"<<std::endl;
 
+
+			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_3){
+
+
+				// moveSmoothly(cameraPosition, glm::vec3(0,0,0), cameraOrientation, glm::mat3 (0,0,-1,0,1,0,1,0,0),
+				// 13, triangles, window, indexToFile, lightSources, frameNumber);
+
+				// moveSmoothly(cameraPosition, glm::vec3(0,0,-4), cameraOrientation, glm::mat3 (-1,0,0,0,1,0,0,0,-1),
+				// 13, triangles, window, indexToFile, lightSources, frameNumber);
+
+				// moveSmoothly(cameraPosition, glm::vec3(0,1.4,2.9), cameraOrientation, cameraOrientation,
+				// 5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				// moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				// 5, triangles, window, indexToFile, lightSources, frameNumber);
+				
+
+
+			moveSmoothly(cameraPosition, glm::vec3(0, 0, -4), cameraOrientation, cameraOrientation,
+						8, triangles, window, indexToFile, lightSources, frameNumber);
+
+			// Turn around: Step 1 — Look right
+			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
+						3, triangles, window, indexToFile, lightSources, frameNumber);
+
+			// Step 2 — Rotate to face backwards
+			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(-1, 0, 0, 0, 1, 0, 0, 0, -1),
+						3, triangles, window, indexToFile, lightSources, frameNumber);
+
+			//back to the origin
+			moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, cameraOrientation,
+						8, triangles, window, indexToFile, lightSources, frameNumber);
+
+
+			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
+						3, triangles, window, indexToFile, lightSources, frameNumber);
+
+			// Move smoothly to (0, 0, 4) and face forward
+			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
+						3, triangles, window, indexToFile, lightSources, frameNumber);
+
+		
+
+
+
+				std::cout<<"end"<<std::endl;
 
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
