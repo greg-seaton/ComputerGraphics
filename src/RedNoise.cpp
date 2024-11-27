@@ -23,8 +23,8 @@
 #include <glm/gtx/quaternion.hpp> //new movesmoothly
 
 #define pi 3.1415926535
-#define WIDTH 320*2
-#define HEIGHT 240*2
+#define WIDTH 320
+#define HEIGHT 240
 float DepthArray [HEIGHT] [WIDTH] = {{0}};
 glm::vec3 cameraPosition (0.0, 0.0, 4.0);
 glm::mat3 cameraOrientation ({1,0,0},{0,1,0},{0,0,1});
@@ -814,6 +814,22 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		}
 		oldColour = intersectionDetails.intersectedTriangle.colour;
 
+
+	}else if (indexToFile[intersectionDetails.triangleIndex] == "mirror-sphere") {
+		std::array<glm::vec3, 3> normals = intersectionDetails.intersectedTriangle.normals;
+		std::vector<float> barycentrics = computeBarycentricPoints(intersectionDetails.intersectionPoint, intersectionDetails.intersectedTriangle);
+		glm::vec3 vertexNormal = glm::normalize(barycentrics[1] * normals[0] + barycentrics[0] * normals[1] + barycentrics[2] * normals[2]);
+
+		float dotProduct = glm::dot(rayDirection, vertexNormal);
+		rayDirection = glm::normalize(rayDirection - 2.0f * dotProduct * vertexNormal);
+
+		glm::vec3 intPoint = intersectionDetails.intersectionPoint + 0.01f * vertexNormal;
+		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount +1, skybox);
+
+		intensity = bounced.first;
+		oldColour = bounced.second;
+
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = texture3D(intersectionDetails, texture);
@@ -849,7 +865,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 			newDirection = glm::normalize(newDirection);
 		}
 		
-		glm::vec3 intPoint = intersectionDetails.intersectionPoint + newDirection * 0.001f;
+		glm::vec3 intPoint = intersectionDetails.intersectionPoint + newDirection * 0.01f;
 		
 		intersectionDetails = getClosestIntersection(newDirection, triangles, intPoint);
 		auto refrPair = shootRay(triangles, indexToFile, newDirection, lightSources, 
@@ -1207,7 +1223,8 @@ int main(int argc, char *argv[]) {
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
 	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
-		indexToFile[i] = "sphere";
+		// indexToFile[i] = "sphere";
+		indexToFile[i] = "mirror-sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
@@ -1746,23 +1763,21 @@ int main(int argc, char *argv[]) {
 				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
 				5, triangles, window, indexToFile, lightSources, frameNumber);
 
-				//fly though to the other side
-				//intermediate step
-				moveSmoothly(cameraPosition, glm::vec3(0,0,0), cameraOrientation, glm::mat3 (0,0,-1,0,1,0,1,0,0),
-				13, triangles, window, indexToFile, lightSources, frameNumber);
+				//sort out lighting on the normal maps section
 
-				moveSmoothly(cameraPosition, glm::vec3(0,0,-4), cameraOrientation, glm::mat3 (-1,0,0,0,1,0,0,0,-1),
-				13, triangles, window, indexToFile, lightSources, frameNumber);
+				//fly through example, do sequence on _3
 
-				moveSmoothly(cameraPosition, glm::vec3(0,1.4,2.9), cameraOrientation, cameraOrientation,
-				5, triangles, window, indexToFile, lightSources, frameNumber);
+				//turn on proper soft shadows
 
-				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
-				5, triangles, window, indexToFile, lightSources, frameNumber);
+				//turn on mirror sphere
 
 				//make gold box do a backflip
 
-				//show off soft shadows and fly through
+				//zoom into and fly around mirror sphere
+
+				//return to origin
+
+				//make box fall away and reveal hackspace logo
 
 				std::cout<<"end of sequence"<<std::endl;
 
@@ -1783,30 +1798,62 @@ int main(int argc, char *argv[]) {
 				// moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
 				// 5, triangles, window, indexToFile, lightSources, frameNumber);
 				
+			//start from origin
+			//orbit 1 quarter
+			//fly though to the 3 quarter position
+			//orbit to 0,0,-4
+			//fly back to origin
+			for (int i=0; i<9; i++){
+				window.clearPixels();
+				memset(DepthArray, 0, sizeof(DepthArray));
+				rotateAboutOrigin(convertDegrees(10));
+				lookAt(glm::vec3 (0,0,0));
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+			}
+
+			moveSmoothly(cameraPosition, glm::vec3(0, 0, 0), cameraOrientation, glm::mat3(1,0,0,0,1,0,0,0,1),
+						12, triangles, window, indexToFile, lightSources, frameNumber);
+
+			moveSmoothly(cameraPosition, glm::vec3(-4, 0, 0), cameraOrientation, glm::mat3(0,0,-1,0,1,0,1,0,0),
+						12, triangles, window, indexToFile, lightSources, frameNumber);
+
+			for (int i=0; i<9; i++){
+				window.clearPixels();
+				memset(DepthArray, 0, sizeof(DepthArray));
+				rotateAboutOrigin(convertDegrees(-10));
+				lookAt(glm::vec3 (0,0,0));
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+			}
+
+			moveSmoothly(cameraPosition, glm::vec3(0, 0, 0), cameraOrientation, glm::mat3(0,0,-1,0,1,0,1,0,0),
+						12, triangles, window, indexToFile, lightSources, frameNumber);
+
+			moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, glm::mat3(1,0,0,0,1,0,0,0,1),
+						12, triangles, window, indexToFile, lightSources, frameNumber);
 
 
-			moveSmoothly(cameraPosition, glm::vec3(0, 0, -4), cameraOrientation, cameraOrientation,
-						8, triangles, window, indexToFile, lightSources, frameNumber);
+			// moveSmoothly(cameraPosition, glm::vec3(0, 0, -4), cameraOrientation, cameraOrientation,
+			// 			8, triangles, window, indexToFile, lightSources, frameNumber);
 
-			// Turn around: Step 1 — Look right
-			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
-						3, triangles, window, indexToFile, lightSources, frameNumber);
+			// // Turn around: Step 1 — Look right
+			// moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
+			// 			3, triangles, window, indexToFile, lightSources, frameNumber);
 
-			// Step 2 — Rotate to face backwards
-			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(-1, 0, 0, 0, 1, 0, 0, 0, -1),
-						3, triangles, window, indexToFile, lightSources, frameNumber);
+			// // Step 2 — Rotate to face backwards
+			// moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(-1, 0, 0, 0, 1, 0, 0, 0, -1),
+			// 			3, triangles, window, indexToFile, lightSources, frameNumber);
 
-			//back to the origin
-			moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, cameraOrientation,
-						8, triangles, window, indexToFile, lightSources, frameNumber);
+			// //back to the origin
+			// moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, cameraOrientation,
+			// 			8, triangles, window, indexToFile, lightSources, frameNumber);
 
 
-			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
-						3, triangles, window, indexToFile, lightSources, frameNumber);
+			// moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(0, 0, -1, 0, 1, 0, 1, 0, 0),
+			// 			3, triangles, window, indexToFile, lightSources, frameNumber);
 
-			// Move smoothly to (0, 0, 4) and face forward
-			moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
-						3, triangles, window, indexToFile, lightSources, frameNumber);
+			// // Move smoothly to (0, 0, 4) and face forward
+			// moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
+			// 			3, triangles, window, indexToFile, lightSources, frameNumber);
 
 		
 
@@ -1814,6 +1861,23 @@ int main(int argc, char *argv[]) {
 
 				std::cout<<"end"<<std::endl;
 
+			}
+
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_4){
+				std::cout<<"move objects away from camera"<<std::endl;
+				for (int i = 0; i < 10; i++) {
+					for (glm::vec3 &lightSource : lightSources) {
+						glm::vec3 direction = glm::normalize(lightSource - cameraPosition);
+						// lightSource += 10.0f * direction;
+					}
+					for (ModelTriangle &triangle : triangles) {
+						for (glm::vec3 &vertex : triangle.vertices) {
+							glm::vec3 direction = glm::normalize(vertex - cameraPosition);
+							vertex += 20.0f * direction;
+						}
+					}
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
