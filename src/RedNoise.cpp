@@ -420,7 +420,7 @@ bool checkPixelDepth (CanvasPoint pixel){
 		return false;
 	}
 
-	if (1/pixel.depth > DepthArray[yInt][xInt] + 0.000001){
+	if (1/pixel.depth > DepthArray[yInt][xInt] + 0.00001){
 		DepthArray[yInt][xInt] = 1/pixel.depth;
 		return true;
 	}
@@ -641,15 +641,15 @@ float genericShading(RayTriangleIntersection intersectionDetails, std::vector<gl
 	return intensity;
 }
 
-glm::vec3 randomlyChange(glm::vec3 normal, float strength){
-	//essentially sets a seed
-    std::mt19937 gen(999);
-    std::normal_distribution<> Ndist(0.0, 0.05);
+glm::vec3 randomlyChange(glm::vec3 normal, float strength) {
+    static std::mt19937 gen(std::random_device{}());
+    std::normal_distribution<> Ndist(0.0, 0.02);
+
     for (int i = 0; i < 3; i++) {
-        float rand = Ndist(gen);
+        float rand = Ndist(gen); 
         normal[i] = normal[i] + (rand * strength);
     }
-    return normal;
+    return glm::normalize(normal);
 }
 
 Colour texture3D(RayTriangleIntersection intersectionDetails, TextureMap &texture){
@@ -832,7 +832,6 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &logoTexture, int red
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = texture3D(intersectionDetails, texture);
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="logo"){
-		std::cout<<"hello logo"<<std::endl;
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = texture3D(intersectionDetails, logoTexture);
 
@@ -890,11 +889,6 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &logoTexture, int red
 
 		intensity = bounced.first;
 		oldColour = bounced.second;
-
-		//simulate glossiness
-		float glossiness = 0.8f;
-		float reflectionStrength = pow(glm::dot(rayDirection, normal), glossiness);
-		intensity *= reflectionStrength;
 
 		oldColour.blue = 0;
 	
@@ -958,7 +952,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 
 	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
 	TextureMap normalMap1 = GDB_FILES ? TextureMap("../assets/normalMap1.ppm") : TextureMap("./assets/normalMap1.ppm");
-	TextureMap normalMap2 = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
+	TextureMap normalMap2 = GDB_FILES ? TextureMap("../assets/normalMap1.ppm") : TextureMap("./assets/normalMap1.ppm");
 	TextureMap logoTexture = GDB_FILES ? TextureMap("../assets/HStexture.ppm") : TextureMap("./assets/HStexture.ppm");
 
 
@@ -974,12 +968,15 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
             RayTriangleIntersection intersectionDetails = getClosestIntersection(rayDirection, triangles, cameraPosition);
 			
 			//dont do shading on the outside of the box
-			glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
-			if (glm::dot(intersectionDetails.intersectedTriangle.normal, pointToCam) > 0) {	
-				Colour oldColour = intersectionDetails.intersectedTriangle.colour;
-				Colour newColour (oldColour.red*0.4, oldColour.green*0.4, oldColour.blue*0.4);
-				window.setPixelColour(x, y, convertColour(newColour));
-				continue;
+			//dont draw on indices 436 to 445
+			if (intersectionDetails.triangleIndex<436 || intersectionDetails.triangleIndex>445){
+				glm::vec3 pointToCam = glm::normalize(intersectionDetails.intersectionPoint - cameraPosition);
+				if (glm::dot(intersectionDetails.intersectedTriangle.normal, pointToCam) > 0) {	
+					Colour oldColour = intersectionDetails.intersectedTriangle.colour;
+					Colour newColour (oldColour.red*0.4, oldColour.green*0.4, oldColour.blue*0.4);
+					window.setPixelColour(x, y, convertColour(newColour));
+					continue;
+				}
 			}
 
 			if (intersectionDetails.distanceFromCamera != -1) {
@@ -1090,6 +1087,7 @@ float convertDegrees(float degrees) {
 }
 
 int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber){
+	std::cout<<frameNumber<<std::endl;
 	if (renderMode==WIREFRAME){
 		drawWireframe(triangles,window);
 	} else if (renderMode==RASTERISE){
@@ -1099,31 +1097,35 @@ int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::u
 	} else{
 		std::cout<<"render type unknown"<<std::endl;
 	}
-	// window.savePPM("frame_" + std::to_string(frameNumber) + ".ppm");
+	window.savePPM("frame_" + std::to_string(frameNumber) + ".ppm");
+	frameNumber = frameNumber+1;
+	std::cout<<frameNumber<<std::endl;
+
 
 	window.renderFrame();
 
-	return frameNumber++;
-	// std::cout<<"render completed"<<std::endl;
+	return frameNumber;
 }
 
 std::vector<glm::vec3> softShadowsLightSources(glm::vec3 lightSource, float radius, int n) {
     std::vector<glm::vec3> lightSources;
 
-    int sideLength = std::sqrt(n);
+    int sideLength = std::cbrt(n);
     if (sideLength < 1) sideLength = 1;
 
     float step = (2.0f * radius) / (sideLength - 1);
 
     for (int x = 0; x < sideLength; x++) {
         for (int y = 0; y < sideLength; y++) {
-            float xPos = -radius + x * step;
-            float yPos = -radius + y * step;
+            for (int z = 0; z < sideLength; z++) {
+                float xPos = -radius + x * step;
+                float yPos = -radius + y * step;
+                float zPos = -radius + z * step;
 
-            lightSources.push_back(lightSource + glm::vec3(xPos, yPos, 0.0f));
-
-            if (lightSources.size() >= n) {
-                return lightSources;
+                lightSources.push_back(lightSource + glm::vec3(xPos, yPos, zPos));
+                if (lightSources.size() >= n) {
+                    return lightSources;
+                }
             }
         }
     }
@@ -1167,7 +1169,7 @@ std::vector<glm::vec3> softShadowsLightSources(glm::vec3 lightSource, float radi
 //     }
 // }
 
-void moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
+int moveSmoothly(glm::vec3 from, glm::vec3 to, glm::mat3 startingOrientation, glm::mat3 endingOrientation, int numberSteps,
 std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber) {
 
 	cameraPosition = from;
@@ -1198,8 +1200,10 @@ std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_ma
 
 		cameraPosition= glm::vec3(cameraPosition[0]+ xStepSize, cameraPosition[1]+ yStepSize, cameraPosition[2]+ zStepSize);
 
-		frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+		frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
     }
+
+	return frameNumber;
 }
 
 
@@ -1221,11 +1225,16 @@ int main(int argc, char *argv[]) {
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
+
+
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
+
+	std::cout<<triangles.size()<<std::endl;
+
+
 	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
-		// indexToFile[i] = "sphere";
-		indexToFile[i] = "mirror-sphere";
+		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
@@ -1245,30 +1254,6 @@ int main(int argc, char *argv[]) {
 	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
 
 	std::vector<ModelTriangle> trianglesLogo = OBJparser ("../assets/logo.obj", colours, 0.007, glm::vec3(-2.1,-2.1,-1.5));
-////////////////////////////////////////////////
-	// glm::vec3 sum(0.0f, 0.0f, 0.0f); // To accumulate vertex positions
-	// int vertexCount = 0;
-
-	// // Iterate through each triangle in trianglesLogo
-	// for (const auto &triangle : trianglesLogo) {
-	// 	// Add each vertex of the triangle to the sum
-	// 	sum += triangle.vertices[0];
-	// 	sum += triangle.vertices[1];
-	// 	sum += triangle.vertices[2];
-
-	// 	// Increment the vertex count by 3 (each triangle has 3 vertices)
-	// 	vertexCount += 3;
-	// }
-
-	// // Compute the average by dividing the sum by the number of vertices
-	// glm::vec3 averageVertexLocation = sum / static_cast<float>(vertexCount);
-
-	// // Output the average vertex location
-	// std::cout << "Average Vertex Location: (" 
-	// 		<< averageVertexLocation.x << ", " 
-	// 		<< averageVertexLocation.y << ", " 
-	// 		<< averageVertexLocation.z << ")" << std::endl;
-////////////////////////////////////////////////
 
 	std::cout<<triangles.size()<<std::endl;
 
@@ -1327,8 +1312,8 @@ int main(int argc, char *argv[]) {
 	
 
 	// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
-	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
+	// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+	std::vector<glm::vec3> lightSources = {glm::vec3(0,0.8,0)};
 
 
 	//flight corners
@@ -1589,12 +1574,11 @@ int main(int argc, char *argv[]) {
 						triangles[j].vertices[2].y -= 0.05;
 					}
 
-					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_2){
-				std::cout << "z down - sequence" <<std::endl;
-				int frameNumber=0;
+				//ffmpeg -framerate 24 -i frame_%d.ppm -c:v libx264 -pix_fmt yuv420p -crf 18 render.mp4
 
 				//wireframe orbit
 				renderMode = WIREFRAME;
@@ -1617,26 +1601,25 @@ int main(int argc, char *argv[]) {
 				}
 				memset(DepthArray, 0, sizeof(DepthArray));
 
-				// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.03, 4);
-				// std::vector<glm::vec3> lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
+
 				lightSources = {glm::vec3(0,0.8,0)};
 
 				//ratrace orbit
 				renderMode = RAYTRACE;
-				// for (int i=0; i<36; i++){
-				// 	window.clearPixels();
-				// 	rotateAboutOrigin(convertDegrees(10));
-				// 	lookAt(glm::vec3 (0,0,0));
-				// 	frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
-				// }
+				for (int i=0; i<36; i++){
+					window.clearPixels();
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 				window.clearPixels();
 
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				window.clearPixels();
 
 				//rotate red box
-				float angleToChange = convertDegrees(6);
-				for (int s=0; s<13; s++) {
+				float angleToChange = convertDegrees(10);
+				for (int s=0; s<36; s++) {
 					window.clearPixels();
 					memset(DepthArray, 0, sizeof(DepthArray));
 
@@ -1676,12 +1659,12 @@ int main(int argc, char *argv[]) {
 					}
 
 					
-					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
 				//move over to the sphere
-				// moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
-				// 5, triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0,0.3,2.5), cameraOrientation, glm::transpose(glm::mat3 (0.987688,0,0,0,1,0.156434,-0.156434,0,0.987688)),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
 
 				USE_PHONG=1;
 
@@ -1707,8 +1690,8 @@ int main(int argc, char *argv[]) {
 				}
 
 				//move back to origin
-				// moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
-				// 5, triangles, window, indexToFile, lightSources, frameNumber);
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
 
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
@@ -1717,8 +1700,9 @@ int main(int argc, char *argv[]) {
 				// indexToFile [14] = "normal-map1"; //front
 				// indexToFile [19] = "normal-map1"; //front
 
-				indexToFile [15] = "normal-map1"; //right
-				indexToFile [20] = "normal-map1"; //right
+				//left wall normal map
+				indexToFile[8] = "normal-map1";
+				indexToFile[9] = "normal-map1";
 
 				indexToFile[6] = "textured-floor";
 				indexToFile[7] = "textured-floor";
@@ -1744,9 +1728,9 @@ int main(int argc, char *argv[]) {
 				glm::vec3 startLight2(0, 0.8, 0);
 				glm::vec3 startLight3(0, 0.8, 0);
 
-				glm::vec3 endLight1(0, 0.25, 0.9);
-				glm::vec3 endLight2(0.9, 0.25, 0.9);
-				glm::vec3 endLight3(-0.9, 0.25, 0.9);
+				glm::vec3 endLight1(0, 0.8, 0.8);
+				glm::vec3 endLight2(0.8, 0.8, 0.8);
+				glm::vec3 endLight3(-0.8, 0.8, -0.8);
 
 				int totalFrames = 5;
 				for (int i = 0; i <= totalFrames; i++) {
@@ -1758,22 +1742,21 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
-				lightSources = {glm::vec3(0,0.25,0.9), glm::vec3(0.9, 0.25, 0.9)};
 
-				//move to red box viewing position
-				// moveSmoothly(cameraPosition, glm::vec3(0, -0.1, 2.7), cameraOrientation, glm::mat3 (0.996514, 0.0337827, -0.0762819, 
-				// -0.0195689, 0.983488, 0.179914, 
-				// 0.0811003, -0.177794, 0.98072),
-				// 5, triangles, window, indexToFile, lightSources, frameNumber);
+				//moves to left wall instead
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0.6, 0, 2), cameraOrientation, glm::mat3 (0.777146, 0, 0.629321, 
+				0, 1, 0, 
+				-0.629321, 0, 0.777146),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
 				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
-				startLight1=glm::vec3(0, 0.25, 0.9);
-				startLight2=glm::vec3(0.9, 0.25, 0.9);
-				startLight3=glm::vec3(-0.9, 0.25, 0.9);
+				startLight1=glm::vec3(0, 0.8, 0.8);
+				startLight2=glm::vec3(0.8, 0.8, 0.8);
+				startLight3=glm::vec3(-0.8, 0.8, -0.8);
 
-				endLight1=glm::vec3(-0.9, 0.8, 0.9);
-				endLight2=glm::vec3(0.9, 0.8, 0.9);
-				endLight3=glm::vec3(0, 0.8, 0.9);
+				endLight1=glm::vec3(-0.8, 0.8, -0.8);
+				endLight2=glm::vec3(0.8, 0.8, 0.8);
+				endLight3=glm::vec3(0, 0.8, 0.8);
 
 				totalFrames = 5;
 				for (int i = 0; i <= totalFrames; i++) {
@@ -1786,29 +1769,338 @@ int main(int argc, char *argv[]) {
 				}
 
 				//back to origin
-				moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0,0,4), cameraOrientation, glm::mat3 (1,0,0,0,1,0,0,0,1),
 				5, triangles, window, indexToFile, lightSources, frameNumber);
 
-				//sort out lighting on the normal maps section
 
-				//fly through example, do sequence on _3
+				startLight1=glm::vec3(-0.8, 0.8, -0.8);
+				startLight2=glm::vec3(0.8, 0.8, 0.8);
+				startLight3=glm::vec3(0, 0.8, 0.8);
 
-				//turn on proper soft shadows
+				endLight1=glm::vec3(0, 0.8, 0);
+				endLight2=glm::vec3(0, 0.8, 0);
+				endLight3=glm::vec3(0, 0.8, 0);
 
-				//turn on mirror sphere
+				totalFrames = 5;
+				for (int i = 0; i <= totalFrames; i++) {
+					float t = float(i) / float(totalFrames);
 
-				//make gold box do a backflip
+					lightSources[0] = glm::mix(startLight1, endLight1, t);
+					lightSources[1] = glm::mix(startLight2, endLight2, t);
+					lightSources[2] = glm::mix(startLight3, endLight3, t);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 
-				//zoom into and fly around mirror sphere
+				lightSources = {glm::vec3(0,0.8,0)};
 
-				//return to origin
 
-				//make box fall away and reveal hackspace logo
+				//fly though orbit
+				for (int i=0; i<9; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0, 0, 0), cameraOrientation, glm::mat3(1,0,0,0,1,0,0,0,1),
+							25, triangles, window, indexToFile, lightSources, frameNumber);
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(-4, 0, 0), cameraOrientation, glm::mat3(0,0,-1,0,1,0,1,0,0),
+							25, triangles, window, indexToFile, lightSources, frameNumber);
+
+				for (int i=0; i<9; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+					rotateAboutOrigin(convertDegrees(-10));
+					lookAt(glm::vec3 (0,0,0));
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0, 0, 0), cameraOrientation, glm::mat3(0,0,-1,0,1,0,1,0,0),
+							25, triangles, window, indexToFile, lightSources, frameNumber);
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, glm::mat3(1,0,0,0,1,0,0,0,1),
+							25, triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				//turn on soft shadows here
+
+				for (int i=32; i<144; i++){
+					indexToFile[i] = "mirror-sphere";
+				}
+
+				for (int i=144; i<436; i++){
+					indexToFile[i] = "mirror-sphere";
+				}
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(-1.63913e-08, -0.1, 2.4), cameraOrientation, glm::mat3 (0.987789, -0.0107708, 0.155428,
+				-0.0336579, 0.959298, 0.280383,
+				-0.152122, -0.28219, 0.947221),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 436; j < 446; j++){
+						triangles[j].vertices[0].y += 0.05;
+						triangles[j].vertices[1].y += 0.05;
+						triangles[j].vertices[2].y += 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				angleToChange = convertDegrees(10);
+				for (int s=0; s<36; s++) {
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					float topMiddleX1 = (triangles[436].vertices[0].x + triangles[436].vertices[1].x + triangles[436].vertices[2].x) / 3; //12
+					float topMiddleY1 = (triangles[436].vertices[0].y + triangles[436].vertices[1].y + triangles[436].vertices[2].y) / 3;
+					float topMiddleZ1 = (triangles[436].vertices[0].z + triangles[436].vertices[1].z + triangles[436].vertices[2].z) / 3;
+
+					float topMiddleX2 = (triangles[441].vertices[0].x + triangles[441].vertices[1].x + triangles[441].vertices[2].x) / 3; //17
+					float topMiddleY2 = (triangles[441].vertices[0].y + triangles[441].vertices[1].y + triangles[441].vertices[2].y) / 3;
+					float topMiddleZ2 = (triangles[441].vertices[0].z + triangles[441].vertices[1].z + triangles[441].vertices[2].z) / 3;
+
+					float botMiddleX1 = (triangles[438].vertices[0].x + triangles[438].vertices[1].x + triangles[438].vertices[2].x) / 3; //14
+					float botMiddleY1 = (triangles[438].vertices[0].y + triangles[438].vertices[1].y + triangles[438].vertices[2].y) / 3;
+					float botMiddleZ1 = (triangles[438].vertices[0].z + triangles[438].vertices[1].z + triangles[438].vertices[2].z) / 3;
+
+					float botMiddleX2 = (triangles[440].vertices[0].x + triangles[440].vertices[1].x + triangles[440].vertices[2].x) / 3; //16
+					float botMiddleY2 = (triangles[440].vertices[0].y + triangles[440].vertices[1].y + triangles[440].vertices[2].y) / 3;
+					float botMiddleZ2 = (triangles[440].vertices[0].z + triangles[440].vertices[1].z + triangles[440].vertices[2].z) / 3;
+
+					float centroidX = (topMiddleX1 + topMiddleX2 + botMiddleX1 + botMiddleX2) / 4;
+					float centroidY = (topMiddleY1 + topMiddleY2 + botMiddleY1 + botMiddleY2) / 4;
+					float centroidZ = (topMiddleZ1 + topMiddleZ2 + botMiddleZ1 + botMiddleZ2) / 4;
+
+					for (int j = 436; j < 446; j++) {
+						for (int k = 0; k < 3; k++) {
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;
+
+							float rotatedY = y * cos(-angleToChange) - z * sin(-angleToChange);
+							float rotatedZ = y * sin(-angleToChange) + z * cos(-angleToChange);
+
+							triangles[j].vertices[k].x = x + centroidX;
+							triangles[j].vertices[k].y = rotatedY + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+				
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 436; j < 446; j++){
+						triangles[j].vertices[0].y -= 0.05;
+						triangles[j].vertices[1].y -= 0.05;
+						triangles[j].vertices[2].y -= 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				std::cout<<"move1"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(-0.2, 0, 1.7), cameraOrientation, glm::mat3 (0.97237, 0.0244017, -0.232167,
+				0, 0.994522, 0.104528,
+				0.233445, -0.10164, 0.967043),
+				10, triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				std::cout<<"move2"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0.9, 0, 1.4), cameraOrientation, glm::mat3 (0.824127, -0.0592056, 0.563304,
+				0, 0.994522, 0.104528,
+				-0.566407, -0.0861447, 0.819612),
+				10, triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::cout<<"move3"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0.8, 0.5, 1.2), cameraOrientation, glm::mat3 (0.987689, -0.0163519, 0.155578,
+				0.0163519, 0.999866, 0.00127981,
+				-0.155578, 0.00127977, 0.987823),
+				10, triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::cout<<"move4"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, glm::mat3 (1, 0, 0,
+				0, 1, 0,
+				0, 0, 1),
+				10, triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::cout<<"move objects away from camera"<<std::endl;
+				for (int j = 0; j < 24; j++) {
+					for (glm::vec3 lightsource:lightSources){
+						lightsource[1]-=0.05f;
+						lightsource[2]-=0.05f;
+					}
+
+					for (ModelTriangle &triangle : triangles) {
+						glm::vec3 avgVertex = (triangle.vertices[0] + triangle.vertices[1] + triangle.vertices[2]) / 3.0f;
+						if (avgVertex.x < 0) {
+							for (glm::vec3 &vertex : triangle.vertices) {
+								vertex.x -= 0.18f;
+								vertex.y -= 0.05f;
+								vertex.z -= 0.05f;
+							}
+						} else {
+							for (glm::vec3 &vertex : triangle.vertices) {
+								vertex.x += 0.18f;
+								vertex.y -= 0.05f;
+								vertex.z -= 0.05f;
+							}
+						}
+					}
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				for (int i=triangles.size(); i<triangles.size()+trianglesLogo.size(); i++){
+					indexToFile[i] = "logo";
+				}
+
+				std::random_device rd;
+				std::mt19937 g(rd());
+				std::shuffle(trianglesLogo.begin(), trianglesLogo.end(), g);
+
+				int totalTriangles = trianglesLogo.size();
+				int chunkSize = totalTriangles / 16;
+				int remainingTriangles = totalTriangles % 16;
+
+				size_t startIndex = 0;
+				for (int i = 0; i < 16; ++i) {
+					size_t endIndex = startIndex + chunkSize + (remainingTriangles-- > 0 ? 1 : 0);
+					triangles.insert(triangles.end(), trianglesLogo.begin() + startIndex, trianglesLogo.begin() + endIndex);
+					startIndex = endIndex;
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 
 				std::cout<<"end of sequence"<<std::endl;
+			}
+			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_5){
+				std::cout<<"gold box backflip"<<std::endl;
+				// std::vector<glm::vec3> lightSources = softShadowsLightSources (glm::vec3(0,0.8,0), 0.07, 64);
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 
+
+				for (int i=32; i<144; i++){
+					indexToFile[i] = "mirror-sphere";
+				}
+
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(-1.63913e-08, -0.1, 2.4), cameraOrientation, glm::mat3 (0.987789, -0.0107708, 0.155428,
+				-0.0336579, 0.959298, 0.280383,
+				-0.152122, -0.28219, 0.947221),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 436; j < 446; j++){
+						triangles[j].vertices[0].y += 0.05;
+						triangles[j].vertices[1].y += 0.05;
+						triangles[j].vertices[2].y += 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				float angleToChange = convertDegrees(10);
+				for (int s=0; s<36; s++) {
+					//first gold box index 436
+
+					//first red box index was 12
+
+					//so add 424 to add triangle indexes
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					float topMiddleX1 = (triangles[436].vertices[0].x + triangles[436].vertices[1].x + triangles[436].vertices[2].x) / 3; //12
+					float topMiddleY1 = (triangles[436].vertices[0].y + triangles[436].vertices[1].y + triangles[436].vertices[2].y) / 3;
+					float topMiddleZ1 = (triangles[436].vertices[0].z + triangles[436].vertices[1].z + triangles[436].vertices[2].z) / 3;
+
+					float topMiddleX2 = (triangles[441].vertices[0].x + triangles[441].vertices[1].x + triangles[441].vertices[2].x) / 3; //17
+					float topMiddleY2 = (triangles[441].vertices[0].y + triangles[441].vertices[1].y + triangles[441].vertices[2].y) / 3;
+					float topMiddleZ2 = (triangles[441].vertices[0].z + triangles[441].vertices[1].z + triangles[441].vertices[2].z) / 3;
+
+					float botMiddleX1 = (triangles[438].vertices[0].x + triangles[438].vertices[1].x + triangles[438].vertices[2].x) / 3; //14
+					float botMiddleY1 = (triangles[438].vertices[0].y + triangles[438].vertices[1].y + triangles[438].vertices[2].y) / 3;
+					float botMiddleZ1 = (triangles[438].vertices[0].z + triangles[438].vertices[1].z + triangles[438].vertices[2].z) / 3;
+
+					float botMiddleX2 = (triangles[440].vertices[0].x + triangles[440].vertices[1].x + triangles[440].vertices[2].x) / 3; //16
+					float botMiddleY2 = (triangles[440].vertices[0].y + triangles[440].vertices[1].y + triangles[440].vertices[2].y) / 3;
+					float botMiddleZ2 = (triangles[440].vertices[0].z + triangles[440].vertices[1].z + triangles[440].vertices[2].z) / 3;
+
+					float centroidX = (topMiddleX1 + topMiddleX2 + botMiddleX1 + botMiddleX2) / 4;
+					float centroidY = (topMiddleY1 + topMiddleY2 + botMiddleY1 + botMiddleY2) / 4;
+					float centroidZ = (topMiddleZ1 + topMiddleZ2 + botMiddleZ1 + botMiddleZ2) / 4;
+
+					for (int j = 436; j < 446; j++) {
+						for (int k = 0; k < 3; k++) {
+							float x = triangles[j].vertices[k].x - centroidX;
+							float y = triangles[j].vertices[k].y - centroidY;
+							float z = triangles[j].vertices[k].z - centroidZ;
+
+							float rotatedY = y * cos(-angleToChange) - z * sin(-angleToChange);
+							float rotatedZ = y * sin(-angleToChange) + z * cos(-angleToChange);
+
+							triangles[j].vertices[k].x = x + centroidX;
+							triangles[j].vertices[k].y = rotatedY + centroidY;
+							triangles[j].vertices[k].z = rotatedZ + centroidZ;
+						}
+					}
+
+					
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+				
+				for (int i = 0; i < 3; i++){
+					window.clearPixels();
+					memset(DepthArray, 0, sizeof(DepthArray));
+
+					for (int j = 436; j < 446; j++){
+						triangles[j].vertices[0].y -= 0.05;
+						triangles[j].vertices[1].y -= 0.05;
+						triangles[j].vertices[2].y -= 0.05;
+					}
+
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
+
+				std::cout<<"move1"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(-0.2, 0, 1.7), cameraOrientation, glm::mat3 (0.97237, 0.0244017, -0.232167,
+				0, 0.994522, 0.104528,
+				0.233445, -0.10164, 0.967043),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+
+				std::cout<<"move2"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0.9, 0, 1.4), cameraOrientation, glm::mat3 (0.824127, -0.0592056, 0.563304,
+				0, 0.994522, 0.104528,
+				-0.566407, -0.0861447, 0.819612),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::cout<<"move3"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0.8, 0.5, 1.2), cameraOrientation, glm::mat3 (0.987689, -0.0163519, 0.155578,
+				0.0163519, 0.999866, 0.00127981,
+				-0.155578, 0.00127977, 0.987823),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::cout<<"move4"<<std::endl;
+				frameNumber=moveSmoothly(cameraPosition, glm::vec3(0, 0, 4), cameraOrientation, glm::mat3 (1, 0, 0,
+				0, 1, 0,
+				0, 0, 1),
+				5, triangles, window, indexToFile, lightSources, frameNumber);
 
 			}
+
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_3){
 
 
@@ -2036,7 +2328,7 @@ int main(int argc, char *argv[]) {
 						triangles[j].vertices[2].y += 0.05;
 					}
 
-					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
 				float angleToChange = convertDegrees(6);
@@ -2090,7 +2382,7 @@ int main(int argc, char *argv[]) {
 						}
 					}
 					
-					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
 				for (int i = 0; i < 3; i++){
@@ -2103,7 +2395,7 @@ int main(int argc, char *argv[]) {
 						triangles[j].vertices[2].y -= 0.05;
 					}
 
-					frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
 				std::cout<<"sequence end"<<std::endl;
