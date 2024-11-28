@@ -785,7 +785,7 @@ Colour combineColours(float weight, const Colour &colour1, const Colour &colour2
 }
 
 std::pair<float, Colour> shootRay(std::vector<ModelTriangle> &triangles, std::unordered_map<int, std::string> &indexToFile, glm::vec3 rayDirection, std::vector<glm::vec3> &lightSources, RayTriangleIntersection intersectionDetails, TextureMap &texture,
-TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureMap &normalMap4, int redirectCount, Skybox &skybox){
+TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &logoTexture, int redirectCount, Skybox &skybox){
 
 	Colour oldColour = Colour (255,255,255);
 	float intensity;
@@ -825,7 +825,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 
 		glm::vec3 intPoint = intersectionDetails.intersectionPoint + 0.01f * vertexNormal;
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount +1, skybox);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, logoTexture, redirectCount +1, skybox);
 
 		intensity = bounced.first;
 		oldColour = bounced.second;
@@ -833,6 +833,10 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 	} else if (indexToFile[intersectionDetails.triangleIndex]=="textured-floor"){
 		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
 		oldColour = texture3D(intersectionDetails, texture);
+	} else if (indexToFile[intersectionDetails.triangleIndex]=="logo"){
+		std::cout<<"hello logo"<<std::endl;
+		intensity = genericShading(intersectionDetails, lightSources, triangles, intersectionDetails.intersectedTriangle.normal);
+		oldColour = texture3D(intersectionDetails, logoTexture);
 
 	} else if (indexToFile[intersectionDetails.triangleIndex] == "glass") {
 		glm::vec3 normal = intersectionDetails.intersectedTriangle.normal;
@@ -870,7 +874,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 		intersectionDetails = getClosestIntersection(newDirection, triangles, intPoint);
 		auto refrPair = shootRay(triangles, indexToFile, newDirection, lightSources, 
 								intersectionDetails, texture, normalMap1, normalMap2, 
-								normalMap3, normalMap4, redirectCount, skybox);
+								logoTexture, redirectCount, skybox);
 		
 		return {refrPair.first, refrPair.second};
 		//could add reflection with reflection coefficient
@@ -884,7 +888,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount,skybox);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, logoTexture, redirectCount,skybox);
 
 		intensity = bounced.first;
 		oldColour = bounced.second;
@@ -924,7 +928,7 @@ TextureMap &normalMap1, TextureMap &normalMap2, TextureMap &normalMap3, TextureM
 
 		glm::vec3 intPoint = glm::vec3(intersectionDetails.intersectionPoint[0]+0.01,intersectionDetails.intersectionPoint[1]+0.01,intersectionDetails.intersectionPoint[2]+0.01);
 		intersectionDetails = getClosestIntersection(rayDirection, triangles, intPoint);
-		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, redirectCount,skybox);
+		auto bounced = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, logoTexture, redirectCount,skybox);
 
 		intensity = bounced.first;
 		oldColour = bounced.second;
@@ -957,8 +961,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 	TextureMap texture = GDB_FILES ? TextureMap("../assets/texture2.ppm") : TextureMap("./assets/texture2.ppm");
 	TextureMap normalMap1 = GDB_FILES ? TextureMap("../assets/normalMap1.ppm") : TextureMap("./assets/normalMap1.ppm");
 	TextureMap normalMap2 = GDB_FILES ? TextureMap("../assets/normalMap2.ppm") : TextureMap("./assets/normalMap2.ppm");
-	TextureMap normalMap3 = GDB_FILES ? TextureMap("../assets/normalMap3.ppm") : TextureMap("./assets/normalMap3.ppm");
-	TextureMap normalMap4 = GDB_FILES ? TextureMap("../assets/normalMap4.ppm") : TextureMap("./assets/normalMap4.ppm");
+	TextureMap logoTexture = GDB_FILES ? TextureMap("../assets/HStexture.ppm") : TextureMap("./assets/HStexture.ppm");
 
 
 	int focalLength = 2;
@@ -982,7 +985,7 @@ void drawRayTraced (int startY, int endY, std::vector<ModelTriangle> &triangles,
 			}
 
 			if (intersectionDetails.distanceFromCamera != -1) {
-				auto result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, normalMap3, normalMap4, 0, skybox);
+				auto result = shootRay(triangles, indexToFile, rayDirection, lightSources, intersectionDetails, texture, normalMap1, normalMap2, logoTexture, 0, skybox);
 
 				float intensity = result.first;
 				Colour oldColour = result.second;
@@ -1216,7 +1219,7 @@ int main(int argc, char *argv[]) {
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,-50));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
@@ -1241,8 +1244,10 @@ int main(int argc, char *argv[]) {
 	for (int i=triangles.size(); i<triangles.size()+trianglesMB.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
-
 	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
+
+	std::vector<ModelTriangle> trianglesLogo = OBJparser ("../assets/logo.obj", colours, 0.05, glm::vec3(0,0,0));
+
 
 	std::cout<<triangles.size()<<std::endl;
 
@@ -1854,30 +1859,46 @@ int main(int argc, char *argv[]) {
 			// // Move smoothly to (0, 0, 4) and face forward
 			// moveSmoothly(cameraPosition, cameraPosition, cameraOrientation, glm::mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
 			// 			3, triangles, window, indexToFile, lightSources, frameNumber);
-
-		
-
-
-
 				std::cout<<"end"<<std::endl;
 
 			}
 
+
+			//box does not appear to move becuase of the relative direction and expansion that is occuring
+			//instead, manually make each side move away, then make the rest of the objects move away from the camera
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_4){
 				std::cout<<"move objects away from camera"<<std::endl;
-				for (int i = 0; i < 10; i++) {
-					for (glm::vec3 &lightSource : lightSources) {
-						glm::vec3 direction = glm::normalize(lightSource - cameraPosition);
-						// lightSource += 10.0f * direction;
+				for (int j = 0; j < 3; j++) {
+					for (glm::vec3 lightsource:lightSources){
+						lightsource[1]-=0.05f;
+						lightsource[2]-=0.05f;
 					}
+
 					for (ModelTriangle &triangle : triangles) {
-						for (glm::vec3 &vertex : triangle.vertices) {
-							glm::vec3 direction = glm::normalize(vertex - cameraPosition);
-							vertex += 20.0f * direction;
+						glm::vec3 avgVertex = (triangle.vertices[0] + triangle.vertices[1] + triangle.vertices[2]) / 3.0f;
+						if (avgVertex.x < 0) {
+							for (glm::vec3 &vertex : triangle.vertices) {
+								vertex.x -= 0.15f;
+								vertex.y -= 0.05f;
+								vertex.z -= 0.05f;
+							}
+						} else {
+							for (glm::vec3 &vertex : triangle.vertices) {
+								vertex.x += 0.15f;
+								vertex.y -= 0.05f;
+								vertex.z -= 0.05f;
+							}
 						}
 					}
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
+
+				//logo not appearing
+				for (int i=triangles.size(); i<triangles.size()+trianglesLogo.size(); i++){
+					indexToFile[i] = "logo";
+				}
+				triangles.insert(triangles.end(), trianglesLogo.begin(), trianglesLogo.end());
+				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
