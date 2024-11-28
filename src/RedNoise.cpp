@@ -35,7 +35,7 @@ bool METALIC_MIRROR = 0;
 bool USE_TEXTURED_FLOOR = 1;
 bool USE_SKYBOX = 1;
 bool USE_NORMAL_MAP = 1;
-bool GDB_FILES = 1;
+bool GDB_FILES = 0;
 bool USE_PHONG=0;
 
 //0-proximity, 1-aoi, 2-specular Lighting
@@ -1053,7 +1053,6 @@ float convertDegrees(float degrees) {
 }
 
 int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::unordered_map<int, std::string> indexToFile, std::vector<glm::vec3> lightSources, int frameNumber){
-	std::cout<<frameNumber<<std::endl;
 	if (renderMode==WIREFRAME){
 		drawWireframe(triangles,window);
 	} else if (renderMode==RASTERISE){
@@ -1065,7 +1064,6 @@ int render(std::vector<ModelTriangle> &triangles,  DrawingWindow &window, std::u
 	}
 	// window.savePPM("frame_" + std::to_string(frameNumber) + ".ppm");
 	frameNumber = frameNumber+1;
-	std::cout<<frameNumber<<std::endl;
 
 	window.renderFrame();
 
@@ -1179,34 +1177,34 @@ int main(int argc, char *argv[]) {
 	//given a triangle index, will reveal which file it came from
 	std::unordered_map<int, std::string> indexToFile;
 
-	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("../assets/textured-cornell-box.mtl");
+	std::tuple<std::vector<Colour>, std::vector<std::string>, std::vector<std::string>> colours = MTLparser ("./assets/textured-cornell-box.mtl");
 	//returns texture files to use (3rd item in the tuple) not actually being used, am hard coding
 
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("./assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	std::vector<ModelTriangle> triangles = trianglesCornelBox;
 
-	std::vector<ModelTriangle> trianglesSphere = OBJparser ("../assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0,-0.8));
+	std::vector<ModelTriangle> trianglesSphere = OBJparser ("./assets/sphere.obj", colours, 0.35, glm::vec3(0.6,0,-0.8));
 	for (int i=triangles.size(); i<triangles.size()+trianglesSphere.size(); i++){
 		indexToFile[i] = "sphere";
 	}
 	triangles.insert(triangles.end(), trianglesSphere.begin(), trianglesSphere.end());
 
-	std::vector<ModelTriangle> trianglesBunny = OBJparser ("../assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesBunny = OBJparser ("./assets/cornell-bunny.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=triangles.size(); i<triangles.size()+trianglesBunny.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	triangles.insert(triangles.end(), trianglesBunny.begin(), trianglesBunny.end());
 
-	std::vector<ModelTriangle> trianglesMB = OBJparser ("../assets/metallic-box.obj", colours, 0.15, glm::vec3(-0.6,-0.57,0.4));
+	std::vector<ModelTriangle> trianglesMB = OBJparser ("./assets/metallic-box.obj", colours, 0.15, glm::vec3(-0.6,-0.57,0.4));
 	for (int i=triangles.size(); i<triangles.size()+trianglesMB.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
 	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
 
-	std::vector<ModelTriangle> trianglesLogo = OBJparser ("../assets/logo.obj", colours, 0.007, glm::vec3(-2.1,-2.1,-1.5));
+	std::vector<ModelTriangle> trianglesLogo = OBJparser ("./assets/logo.obj", colours, 0.007, glm::vec3(-2.1,-2.1,-1.5));
 
 	//blue box is indexes 22-31
 
@@ -1235,9 +1233,12 @@ int main(int argc, char *argv[]) {
 			frameNumber = render(triangles, window, indexToFile, lightSources, 1);
 
 		}
+		frameNumber = render(triangles, window, indexToFile, lightSources, 1);
+
 		// We MUST poll for events - otherwise the window will freeze !
 		if (window.pollForInputEvents(event)){
 			//polls for key presses
+			
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_o){
 				std::cout<<"orbit toggle"<<std::endl;
 				orbit=abs(orbit-1);
