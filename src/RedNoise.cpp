@@ -18,9 +18,7 @@
 #include <glm/glm.hpp>
 #include <cstring>  // included for memset, used to reset depthArray
 #include <unordered_map> //added for new obj parser
-
-#include <glm/gtc/quaternion.hpp> //new movesmoothly
-#include <glm/gtx/quaternion.hpp> //new movesmoothly
+#include <algorithm> //for shuffle
 
 #define pi 3.1415926535
 #define WIDTH 320
@@ -1219,7 +1217,7 @@ int main(int argc, char *argv[]) {
 
 
 	//have hardcoded texture file to remove instances of cobbles (replaced with green)
-	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,-50));
+	std::vector<ModelTriangle> trianglesCornelBox = OBJparser ("../assets/textured-cornell-box.obj", colours, 0.35, glm::vec3(0,0,0));
 	for (int i=0; i<trianglesCornelBox.size(); i++){
 		indexToFile[i] = "cornell-box";
 	}
@@ -1246,8 +1244,31 @@ int main(int argc, char *argv[]) {
 	}
 	triangles.insert(triangles.end(), trianglesMB.begin(), trianglesMB.end());
 
-	std::vector<ModelTriangle> trianglesLogo = OBJparser ("../assets/logo.obj", colours, 0.05, glm::vec3(0,0,0));
+	std::vector<ModelTriangle> trianglesLogo = OBJparser ("../assets/logo.obj", colours, 0.007, glm::vec3(-2.1,-2.1,-1.5));
+////////////////////////////////////////////////
+	// glm::vec3 sum(0.0f, 0.0f, 0.0f); // To accumulate vertex positions
+	// int vertexCount = 0;
 
+	// // Iterate through each triangle in trianglesLogo
+	// for (const auto &triangle : trianglesLogo) {
+	// 	// Add each vertex of the triangle to the sum
+	// 	sum += triangle.vertices[0];
+	// 	sum += triangle.vertices[1];
+	// 	sum += triangle.vertices[2];
+
+	// 	// Increment the vertex count by 3 (each triangle has 3 vertices)
+	// 	vertexCount += 3;
+	// }
+
+	// // Compute the average by dividing the sum by the number of vertices
+	// glm::vec3 averageVertexLocation = sum / static_cast<float>(vertexCount);
+
+	// // Output the average vertex location
+	// std::cout << "Average Vertex Location: (" 
+	// 		<< averageVertexLocation.x << ", " 
+	// 		<< averageVertexLocation.y << ", " 
+	// 		<< averageVertexLocation.z << ")" << std::endl;
+////////////////////////////////////////////////
 
 	std::cout<<triangles.size()<<std::endl;
 
@@ -1868,7 +1889,7 @@ int main(int argc, char *argv[]) {
 			//instead, manually make each side move away, then make the rest of the objects move away from the camera
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_4){
 				std::cout<<"move objects away from camera"<<std::endl;
-				for (int j = 0; j < 3; j++) {
+				for (int j = 0; j < 8; j++) {
 					for (glm::vec3 lightsource:lightSources){
 						lightsource[1]-=0.05f;
 						lightsource[2]-=0.05f;
@@ -1893,12 +1914,25 @@ int main(int argc, char *argv[]) {
 					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
 				}
 
-				//logo not appearing
 				for (int i=triangles.size(); i<triangles.size()+trianglesLogo.size(); i++){
 					indexToFile[i] = "logo";
 				}
-				triangles.insert(triangles.end(), trianglesLogo.begin(), trianglesLogo.end());
-				frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+
+				std::random_device rd;
+				std::mt19937 g(rd());
+				std::shuffle(trianglesLogo.begin(), trianglesLogo.end(), g);
+
+				int totalTriangles = trianglesLogo.size();
+				int chunkSize = totalTriangles / 16;
+				int remainingTriangles = totalTriangles % 16;
+
+				size_t startIndex = 0;
+				for (int i = 0; i < 16; ++i) {
+					size_t endIndex = startIndex + chunkSize + (remainingTriangles-- > 0 ? 1 : 0);
+					triangles.insert(triangles.end(), trianglesLogo.begin() + startIndex, trianglesLogo.begin() + endIndex);
+					startIndex = endIndex;
+					frameNumber = render(triangles, window, indexToFile, lightSources, frameNumber);
+				}
 			}
 			if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_z){
 
