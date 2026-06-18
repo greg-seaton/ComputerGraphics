@@ -56,11 +56,6 @@ A software renderer and ray tracer developed in C++ as part of a Computer Graphi
 
 ## Demo
 
-### Reflections
-![Reflections](renderFinalP1.gif)
-
-### Camera Movement
-![Camera Movement](renderFinalP2.gif)
-
-### Shading & Materials
-![Shading](renderFinalP3.gif)
+| Part 1 | Part 2 | Part 3 |
+|-------------|---------------|---------------------|
+| ![](renderFinalP1.gif) | ![](renderFinalP2.gif) | ![](renderFinalP3.gif) |
