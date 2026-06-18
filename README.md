@@ -54,6 +54,13 @@ A software renderer and ray tracer developed in C++ as part of a Computer Graphi
 * SDL2
 * OBJ/MTL asset pipeline
 
-## Final Render
+## Demo
 
-[Final render mp4](./renderFinal.mp4)
+### Reflections
+![Reflections](renderFinalP1.gif)
+
+### Camera Movement
+![Camera Movement](renderFinalP2.gif)
+
+### Shading & Materials
+![Shading](renderFinalP3.gif)
