@@ -33,6 +33,7 @@ A software renderer and ray tracer developed in C++ as part of a Computer Graphi
 * Metallic and reflective materials
 * Angle-of-incidence lighting
 * Specular highlights
+* Normal maps
 
 ### Environment Rendering
 
